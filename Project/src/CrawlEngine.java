@@ -1,15 +1,23 @@
 import java.util.List;
 
 /**
- * The BFS traversal engine. Pulls URLs from the frontier,
- * fetches pages, extracts links, enforces the depth limit,
- * and stores results.
+ * The BFS traversal engine with production-grade safety controls.
+ *
+ * KEY ALGORITHM: Domain-Bounded Depth-Limited BFS
+ *   Standard BFS visits ALL reachable nodes. On the web, that's billions.
+ *   This engine applies three bounding strategies:
+ *     1. Depth limit   — stops after N hops from the seed
+ *     2. Domain scope   — only follows links on the seed's domain
+ *     3. Page cap       — hard limit on total pages crawled
+ *     4. Politeness     — delay between requests to avoid hammering servers
  */
 public class CrawlEngine {
 
     private final URLManager urlManager;
     private final HTTPFetcherHTMLParser fetcher;
     private final DataStorageModule dataStore;
+
+    private static final int POLITENESS_DELAY_MS = 150;
 
     private volatile boolean abortFlag = false;
     private long startTimeMs;
@@ -21,11 +29,17 @@ public class CrawlEngine {
     }
 
     /**
-     * Runs the depth-limited BFS crawl from the seed URL already in the frontier.
+     * Runs the depth-limited, domain-bounded BFS crawl.
      *
      * BFS depth tracking uses the level-order counting trick:
      *   pagesInCurrentLevel counts down as we dequeue.
      *   When it hits zero, we advance to the next depth level.
+     *
+     * Safety: The loop terminates when ANY of these are true:
+     *   - Frontier is empty (BFS exhausted)
+     *   - Current depth exceeds maxDepth
+     *   - Total pages crawled reaches urlManager.maxPages
+     *   - User triggers abort via Ctrl+C / shutdown hook
      */
     public void startBFS(int maxDepth, String keyword) {
         startTimeMs = System.currentTimeMillis();
@@ -33,15 +47,37 @@ public class CrawlEngine {
         int currentDepth = 0;
         int pagesInCurrentLevel = urlManager.getFrontierSize();
         int pagesInNextLevel = 0;
+        int pagesCrawled = 0;
+        int maxPages = urlManager.getMaxPages();
 
-        System.out.println("[INFO] Starting BFS crawl (max depth: " + maxDepth + ")");
-        System.out.println("[INFO] Depth 0 starting with " + pagesInCurrentLevel + " seed URL(s)");
+        System.out.println("[INFO] Starting BFS crawl");
+        System.out.println("[INFO]   Max depth   : " + maxDepth);
+        System.out.println("[INFO]   Max pages   : " + maxPages);
+        System.out.println("[INFO]   Domain      : " + urlManager.getSeedDomain());
+        System.out.println("[INFO]   Politeness  : " + POLITENESS_DELAY_MS + "ms between requests");
+        System.out.println("[INFO]   Depth 0 has " + pagesInCurrentLevel + " seed URL(s)");
         System.out.println();
 
         while (urlManager.hasPendingUrls() && currentDepth <= maxDepth && !abortFlag) {
+            // Page cap check
+            if (pagesCrawled >= maxPages) {
+                System.out.println("\n[INFO] Page limit reached (" + maxPages + "). Stopping.");
+                break;
+            }
+
             String currentUrl = urlManager.getNextUrl();
             if (currentUrl == null) {
                 break;
+            }
+
+            // Politeness delay
+            if (pagesCrawled > 0) {
+                try {
+                    Thread.sleep(POLITENESS_DELAY_MS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             }
 
             long fetchStart = System.currentTimeMillis();
@@ -64,58 +100,66 @@ public class CrawlEngine {
                     currentUrl, title, currentDepth, fetchTimeMs, keywordMatch
                 );
                 dataStore.addResult(result);
-
-                System.out.println("[CRAWL] Depth " + currentDepth
-                    + " | " + truncate(currentUrl, 60)
-                    + " | " + truncate(title, 30)
-                    + " | " + links.size() + " links"
-                    + " | " + fetchTimeMs + "ms"
-                    + (keywordMatch ? " | MATCH" : ""));
+                pagesCrawled++;
 
                 // Enqueue children for the next level
+                int acceptedLinks = 0;
                 if (currentDepth < maxDepth) {
                     for (String link : links) {
                         if (urlManager.addIfNotVisited(link)) {
                             pagesInNextLevel++;
+                            acceptedLinks++;
                         }
                     }
                 }
+
+                System.out.printf("[%3d/%d] D%d | %-55s | %-28s | %d/%d links | %dms%s%n",
+                    pagesCrawled, maxPages, currentDepth,
+                    truncate(currentUrl, 55),
+                    truncate(title, 28),
+                    acceptedLinks, links.size(),
+                    fetchTimeMs,
+                    keywordMatch ? " | MATCH" : "");
             } else {
-                System.out.println("[SKIP]  Depth " + currentDepth
-                    + " | " + truncate(currentUrl, 60)
-                    + " | fetch failed | " + fetchTimeMs + "ms");
+                System.out.printf("[%3d/%d] D%d | %-55s | FETCH FAILED | %dms%n",
+                    pagesCrawled + 1, maxPages, currentDepth,
+                    truncate(currentUrl, 55),
+                    fetchTimeMs);
             }
 
             // Depth level transition
             pagesInCurrentLevel--;
-            if (pagesInCurrentLevel == 0) {
+            if (pagesInCurrentLevel <= 0) {
                 currentDepth++;
                 pagesInCurrentLevel = pagesInNextLevel;
                 pagesInNextLevel = 0;
                 if (currentDepth <= maxDepth && pagesInCurrentLevel > 0) {
                     System.out.println();
                     System.out.println("[INFO] Depth " + currentDepth
-                        + " beginning (" + pagesInCurrentLevel + " pages in queue)");
+                        + " — " + pagesInCurrentLevel + " pages queued"
+                        + " (frontier: " + urlManager.getFrontierSize()
+                        + ", visited: " + urlManager.getVisitedCount() + ")");
                 }
             }
         }
 
         long elapsedMs = System.currentTimeMillis() - startTimeMs;
         System.out.println();
-        System.out.println("========================================");
-        System.out.println("  Crawl complete");
-        System.out.println("  Pages crawled  : " + dataStore.getResultCount());
-        System.out.println("  URLs discovered: " + urlManager.getVisitedCount());
-        System.out.println("  Time elapsed   : " + formatDuration(elapsedMs));
+        System.out.println("  ========================================");
+        System.out.println("    Crawl Complete");
+        System.out.println("  ========================================");
+        System.out.printf("    Pages crawled    : %d%n", dataStore.getResultCount());
+        System.out.printf("    URLs discovered  : %d%n", urlManager.getVisitedCount());
+        System.out.printf("    Frontier remain  : %d%n", urlManager.getFrontierSize());
+        System.out.printf("    Domain scoped to : %s%n", urlManager.getSeedDomain());
+        System.out.printf("    Time elapsed     : %s%n", formatDuration(elapsedMs));
         if (abortFlag) {
-            System.out.println("  (Crawl was aborted by user)");
+            System.out.println("    (Crawl was aborted by user)");
         }
-        System.out.println("========================================");
+        System.out.println("  ========================================");
     }
 
-    /**
-     * Signals the crawl loop to stop after the current page.
-     */
+    /** Signals the crawl loop to stop after the current page. */
     public void abort() {
         abortFlag = true;
     }

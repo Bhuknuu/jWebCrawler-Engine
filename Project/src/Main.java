@@ -14,8 +14,9 @@ public class Main {
         String seedUrl = config[0];
         int maxDepth = Integer.parseInt(config[1]);
         String keyword = config[2];
+        int maxPages = Integer.parseInt(config[3]);
 
-        UserInterface.printCrawlConfig(seedUrl, maxDepth, keyword);
+        UserInterface.printCrawlConfig(seedUrl, maxDepth, keyword, maxPages);
 
         if (!UserInterface.confirmStart(scanner)) {
             System.out.println("\n  Crawl cancelled. Goodbye!");
@@ -25,7 +26,7 @@ public class Main {
 
         System.out.println();
 
-        URLManager urlManager = new URLManager();
+        URLManager urlManager = new URLManager(maxPages, maxPages * 10);
         HTTPFetcherHTMLParser fetcher = new HTTPFetcherHTMLParser();
         DataStorageModule dataStore = new DataStorageModule();
         CrawlEngine crawlEngine = new CrawlEngine(urlManager, fetcher, dataStore);

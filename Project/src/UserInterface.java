@@ -78,7 +78,7 @@ public class UserInterface {
 
     /**
      * Runs the full interactive input flow.
-     * Returns a String[3]: {seedUrl, maxDepth, keyword}
+     * Returns a String[4]: {seedUrl, maxDepth, keyword, maxPages}
      */
     public static String[] runInteractiveSetup(Scanner scanner) {
         printBanner();
@@ -86,9 +86,10 @@ public class UserInterface {
 
         String seedUrl = promptSeedUrl(scanner);
         int maxDepth = promptDepth(scanner);
+        int maxPages = promptMaxPages(scanner);
         String keyword = promptKeyword(scanner);
 
-        return new String[] { seedUrl, String.valueOf(maxDepth), keyword };
+        return new String[] { seedUrl, String.valueOf(maxDepth), keyword, String.valueOf(maxPages) };
     }
 
     /**
@@ -97,8 +98,7 @@ public class UserInterface {
     private static void printBanner() {
         System.out.println();
         System.out.println("  ╔══════════════════════════════════════════╗");
-        System.out.println("  ║        jWebCrawler-Engine v1.0           ║");
-        System.out.println("  ║   BFS Web Crawler  |  DAA TCS-409       ║");
+        System.out.println("  ║            Web Crawler  Engine           ║");
         System.out.println("  ╚══════════════════════════════════════════╝");
         System.out.println();
     }
@@ -215,16 +215,52 @@ public class UserInterface {
     }
 
     /**
+     * Prompts for max pages to crawl.
+     */
+    public static int promptMaxPages(Scanner scanner) {
+        System.out.println();
+        System.out.println("  Max pages limits total pages crawled (prevents runaway BFS):");
+        System.out.println("    50  = quick scan (~15 seconds)");
+        System.out.println("    100 = moderate scan (~30 seconds)");
+        System.out.println("    500 = deep scan (~3 minutes)");
+        System.out.println();
+        System.out.print("  Max pages (10-1000, ENTER for default 100): ");
+
+        String input = scanner.nextLine().strip();
+        if (input.isEmpty()) {
+            System.out.println("  Using default: 100 pages");
+            return 100;
+        }
+        try {
+            int pages = Integer.parseInt(input);
+            if (pages < 10) {
+                System.out.println("  Minimum is 10. Using 10.");
+                return 10;
+            }
+            if (pages > 1000) {
+                System.out.println("  Maximum is 1000. Using 1000.");
+                return 1000;
+            }
+            return pages;
+        } catch (NumberFormatException e) {
+            System.out.println("  Invalid number. Using default: 100 pages");
+            return 100;
+        }
+    }
+
+    /**
      * Prints the crawl configuration summary before starting.
      */
-    public static void printCrawlConfig(String seedUrl, int maxDepth, String keyword) {
+    public static void printCrawlConfig(String seedUrl, int maxDepth, String keyword, int maxPages) {
         System.out.println();
         System.out.println("  ========================================");
         System.out.println("    Crawl Configuration");
         System.out.println("  ========================================");
-        System.out.println("    Seed URL : " + seedUrl);
-        System.out.println("    Depth    : " + maxDepth);
-        System.out.println("    Keyword  : " + (keyword.isEmpty() ? "(none)" : "\"" + keyword + "\""));
+        System.out.println("    Seed URL  : " + seedUrl);
+        System.out.println("    Depth     : " + maxDepth);
+        System.out.println("    Max pages : " + maxPages);
+        System.out.println("    Keyword   : " + (keyword.isEmpty() ? "(none)" : "\"" + keyword + "\""));
+        System.out.println("    Scoping   : same-domain only");
         System.out.println("  ========================================");
     }
 

@@ -16,18 +16,19 @@ import java.util.regex.Pattern;
  */
 public class HTTPFetcherHTMLParser {
 
-    private static final int CONNECTION_TIMEOUT_MS = 5000;
-    private static final int READ_TIMEOUT_MS = 10000;
+    private static final int CONNECTION_TIMEOUT_MS = 8000;
+    private static final int READ_TIMEOUT_MS = 15000;
     private static final int MAX_BODY_SIZE = 1_048_576;
     private static final String USER_AGENT = "jWebCrawler/1.0 (+educational project)";
 
-    // Pattern for <a href="..."> with both single and double quotes
+    // Matches <a ... href="..." ...> with both quote styles
+    // Captures the href value, allowing # anchors (we filter them later)
     private static final Pattern ANCHOR_PATTERN = Pattern.compile(
-        "<a\\s+[^>]*href\\s*=\\s*[\"']([^\"'#][^\"']*)[\"']",
+        "<a\\s+[^>]*?href\\s*=\\s*[\"']\\s*([^\"'\\s][^\"']*?)\\s*[\"']",
         Pattern.CASE_INSENSITIVE
     );
 
-    // Pattern for <title>...</title>
+    // Matches <title>...</title>
     private static final Pattern TITLE_PATTERN = Pattern.compile(
         "<title[^>]*>([^<]*)</title>",
         Pattern.CASE_INSENSITIVE
@@ -36,7 +37,6 @@ public class HTTPFetcherHTMLParser {
     /**
      * Fetches the raw HTML content of a page via HTTP GET.
      * Returns null on any failure (timeout, bad status, non-HTML, etc).
-     * Follows up to 5 redirects.
      */
     public String fetchPage(String urlString) {
         HttpURLConnection connection = null;
@@ -52,7 +52,6 @@ public class HTTPFetcherHTMLParser {
 
             int statusCode = connection.getResponseCode();
             if (statusCode < 200 || statusCode >= 400) {
-                System.err.println("[WARN] HTTP " + statusCode + " for " + urlString);
                 return null;
             }
 
@@ -78,14 +77,11 @@ public class HTTPFetcherHTMLParser {
                 }
             }
             reader.close();
-
             return body.toString();
 
         } catch (IOException e) {
-            System.err.println("[WARN] Failed to fetch " + urlString + ": " + e.getMessage());
             return null;
         } catch (IllegalArgumentException e) {
-            System.err.println("[WARN] Invalid URL format: " + urlString);
             return null;
         } finally {
             if (connection != null) {
@@ -97,7 +93,12 @@ public class HTTPFetcherHTMLParser {
     /**
      * Extracts all valid hyperlinks from an HTML string.
      * Converts relative URLs to absolute using the base URL.
-     * Filters out javascript:, mailto:, tel:, and data: schemes.
+     *
+     * Applies a content-link filter to skip:
+     *   - Fragment-only links (#section)
+     *   - Non-HTTP schemes (javascript:, mailto:, tel:, etc.)
+     *   - Binary file links (.jpg, .pdf, .zip, etc.)
+     *   - Empty/whitespace hrefs
      */
     public List<String> extractLinks(String html, String baseUrl) {
         List<String> links = new ArrayList<>();
@@ -109,6 +110,18 @@ public class HTTPFetcherHTMLParser {
         while (matcher.find()) {
             String href = matcher.group(1).strip();
 
+            if (href.isEmpty() || href.equals("#")) {
+                continue;
+            }
+
+            // Strip fragment from the href before resolving
+            int fragmentIdx = href.indexOf('#');
+            if (fragmentIdx == 0) {
+                continue;
+            }
+            if (fragmentIdx > 0) {
+                href = href.substring(0, fragmentIdx);
+            }
             if (href.isEmpty()) {
                 continue;
             }
@@ -119,13 +132,19 @@ public class HTTPFetcherHTMLParser {
                     || hrefLower.startsWith("mailto:")
                     || hrefLower.startsWith("tel:")
                     || hrefLower.startsWith("data:")
-                    || hrefLower.startsWith("ftp:")) {
+                    || hrefLower.startsWith("ftp:")
+                    || hrefLower.startsWith("irc:")) {
+                continue;
+            }
+
+            // Skip binary file links
+            if (isBinaryExtension(hrefLower)) {
                 continue;
             }
 
             // Resolve relative URLs against the base
             String absoluteUrl = resolveUrl(href, baseUrl);
-            if (absoluteUrl != null) {
+            if (absoluteUrl != null && !absoluteUrl.isBlank()) {
                 links.add(absoluteUrl);
             }
         }
@@ -141,12 +160,12 @@ public class HTTPFetcherHTMLParser {
         if (html == null || html.isBlank()) {
             return "[No Title]";
         }
-
         Matcher matcher = TITLE_PATTERN.matcher(html);
         if (matcher.find()) {
             String title = matcher.group(1).strip();
-            // Collapse whitespace
             title = title.replaceAll("\\s+", " ");
+            // Decode HTML entities in title
+            title = decodeEntities(title);
             return title.isEmpty() ? "[No Title]" : title;
         }
         return "[No Title]";
@@ -160,24 +179,41 @@ public class HTTPFetcherHTMLParser {
         if (html == null || html.isBlank()) {
             return "";
         }
-
-        // Remove <script>...</script> blocks
+        // Remove <script>...</script> and <style>...</style>
         String cleaned = html.replaceAll("(?is)<script[^>]*>.*?</script>", "");
-        // Remove <style>...</style> blocks
         cleaned = cleaned.replaceAll("(?is)<style[^>]*>.*?</style>", "");
-        // Remove all HTML tags
+        // Remove all tags
         cleaned = cleaned.replaceAll("<[^>]+>", " ");
-        // Decode common HTML entities
-        cleaned = cleaned.replace("&amp;", "&")
-                         .replace("&lt;", "<")
-                         .replace("&gt;", ">")
-                         .replace("&quot;", "\"")
-                         .replace("&apos;", "'")
-                         .replace("&nbsp;", " ");
-        // Collapse whitespace
+        // Decode entities and collapse whitespace
+        cleaned = decodeEntities(cleaned);
         cleaned = cleaned.replaceAll("\\s+", " ").strip();
 
+        // Cap at 10KB to prevent OOM on huge pages
+        if (cleaned.length() > 10240) {
+            cleaned = cleaned.substring(0, 10240);
+        }
         return cleaned;
+    }
+
+    /** Decodes common HTML entities. */
+    private static String decodeEntities(String text) {
+        return text.replace("&amp;", "&")
+                   .replace("&lt;", "<")
+                   .replace("&gt;", ">")
+                   .replace("&quot;", "\"")
+                   .replace("&apos;", "'")
+                   .replace("&nbsp;", " ")
+                   .replace("&#39;", "'")
+                   .replace("&#x27;", "'")
+                   .replace("&#34;", "\"");
+    }
+
+    /** Checks if a URL path ends with a binary file extension. */
+    private static boolean isBinaryExtension(String href) {
+        // Strip query string for extension check
+        int qIdx = href.indexOf('?');
+        String pathOnly = qIdx >= 0 ? href.substring(0, qIdx) : href;
+        return pathOnly.matches(".*\\.(jpg|jpeg|png|gif|svg|webp|ico|bmp|pdf|doc|docx|xls|xlsx|ppt|pptx|zip|rar|gz|tar|mp3|mp4|avi|mov|wmv|css|js|woff|woff2|ttf|eot|xml|rss|atom)$");
     }
 
     /**
@@ -187,16 +223,12 @@ public class HTTPFetcherHTMLParser {
     private String resolveUrl(String href, String baseUrl) {
         try {
             URI base = new URI(baseUrl);
-            URI resolved = base.resolve(href);
+            URI resolved = base.resolve(new URI(href.replace(" ", "%20")));
 
             String scheme = resolved.getScheme();
-            if (scheme == null) {
-                return null;
-            }
+            if (scheme == null) return null;
             scheme = scheme.toLowerCase();
-            if (!scheme.equals("http") && !scheme.equals("https")) {
-                return null;
-            }
+            if (!scheme.equals("http") && !scheme.equals("https")) return null;
 
             return resolved.toString();
         } catch (Exception e) {
