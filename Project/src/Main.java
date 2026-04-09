@@ -1,13 +1,47 @@
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
-void main() {
-    //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
-    // to see how IntelliJ IDEA suggests fixing it.
-    IO.println(String.format("Hello and welcome!"));
+import java.util.List;
+import java.util.Scanner;
 
-    for (int i = 1; i <= 5; i++) {
-        //TIP Press <shortcut actionId="Debug"/> to start debugging your code. We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint
-        // for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.
-        IO.println("i = " + i);
+/**
+ * Entry point for jWebCrawler-Engine.
+ * Always runs interactive setup, then launches the BFS crawl.
+ */
+public class Main {
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+
+        String[] config = UserInterface.runInteractiveSetup(scanner);
+        String seedUrl = config[0];
+        int maxDepth = Integer.parseInt(config[1]);
+        String keyword = config[2];
+
+        UserInterface.printCrawlConfig(seedUrl, maxDepth, keyword);
+
+        if (!UserInterface.confirmStart(scanner)) {
+            System.out.println("\n  Crawl cancelled. Goodbye!");
+            scanner.close();
+            return;
+        }
+
+        System.out.println();
+
+        URLManager urlManager = new URLManager();
+        HTTPFetcherHTMLParser fetcher = new HTTPFetcherHTMLParser();
+        DataStorageModule dataStore = new DataStorageModule();
+        CrawlEngine crawlEngine = new CrawlEngine(urlManager, fetcher, dataStore);
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("\n  [SHUTDOWN] Flushing results...");
+            dataStore.flush();
+        }));
+
+        urlManager.addSeed(seedUrl);
+        crawlEngine.startBFS(maxDepth, keyword);
+
+        List<DataStorageModule.CrawlResult> results = dataStore.getAllResults();
+        UserInterface.displayResults(results);
+
+        dataStore.flush();
+        scanner.close();
     }
 }

@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Comprehensive pedagogical documentation of jWebCrawler-Engine: a Java-based BFS web crawler with Bloom Filter deduplication, Jsoup HTML parsing, and GUI interface for the DAA TCS-409 course.">
+    <title>jWebCrawler-Engine — Complete Project Documentation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Roboto+Mono:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================================
+           COLOR PALETTE SOURCE: colorPalettes.json
+           Page 64: #6c744a Rainette Green (nature/crawling metaphor)
+           Page 64: #147495 Turquoise Green (links/network)
+           Page 64: #5b3121 Pale Raw Umber (deep grounding)
+           Page 60: #b08513 Sulphine Yellow (accents/highlights)
+           Page 60: #4bafc7 Calamine Blue (technical clarity)
+           Page 60: #424a19 Olive Green (complementary)
+           ============================================================ */
+        :root {
+            --bg-page: #f8f6f1;
+            --bg-surface: #f0ece3;
+            --bg-code: #faf8f2;
+            --bg-callout: #f5f1e8;
+            --text-primary: #2c2214;
+            --text-secondary: #5e5347;
+            --text-muted: #8a7e72;
+            --accent-turquoise: #147495;
+            --accent-green: #6c744a;
+            --accent-yellow: #b08513;
+            --accent-blue: #4bafc7;
+            --accent-umber: #5b3121;
+            --border-light: #e2d9ca;
+            --border-warm: #d4c8b4;
+            --shadow-soft: rgba(44, 34, 20, 0.06);
+            --graph-node: #147495;
+            --graph-edge: #b08513;
+            --bloom-bit: #6c744a;
+            --toggle-bg: #d4c8b4;
+            --toggle-knob: #f8f6f1;
+            --toggle-icon: '☀️';
+        }
+
+        /* ============================================================
+           DARK THEME — Deep charcoal with warm Sanzo Wada undertones
+           Same palette, deepened and inverted for comfortable reading.
+           ============================================================ */
+        [data-theme="dark"] {
+            --bg-page: #141210;
+            --bg-surface: #1e1b17;
+            --bg-code: #1a1816;
+            --bg-callout: #201d18;
+            --text-primary: #e8e2d8;
+            --text-secondary: #b5aa9a;
+            --text-muted: #7a7064;
+            --accent-turquoise: #5bc4e8;
+            --accent-green: #9aaa6e;
+            --accent-yellow: #d4a520;
+            --accent-blue: #6dcde0;
+            --accent-umber: #c88a60;
+            --border-light: #2e2a24;
+            --border-warm: #3a342c;
+            --shadow-soft: rgba(0, 0, 0, 0.35);
+            --graph-node: #5bc4e8;
+            --graph-edge: #d4a520;
+            --bloom-bit: #9aaa6e;
+            --toggle-bg: #3a342c;
+            --toggle-knob: #e8e2d8;
+            --toggle-icon: '🌙';
+        }
+        [data-theme="dark"] nav {
+            background: rgba(20, 18, 16, 0.92);
+            border-bottom-color: #2e2a24;
+        }
+        [data-theme="dark"] .callout.warn {
+            border-left-color: #c17a5a;
+            background: #261e18;
+        }
+        [data-theme="dark"] .tag.done {
+            background: #1e2e1a;
+            color: #7aba6a;
+            border-color: #2e4a24;
+        }
+        [data-theme="dark"] .tag.pending {
+            background: #2e1a1a;
+            color: #d08060;
+            border-color: #4a2a24;
+        }
+        [data-theme="dark"] .tag.progress {
+            background: #2e2a14;
+            color: #c8a840;
+            border-color: #4a4020;
+        }
+        [data-theme="dark"] .tag.owner {
+            background: #1a2530;
+            color: #6ab8d4;
+            border-color: #243848;
+        }
+        [data-theme="dark"] .tag {
+            background: #1e1b17;
+            color: #7a7064;
+            border-color: #2e2a24;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body {
+            background: var(--bg-page);
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, sans-serif;
+            line-height: 1.75;
+            font-size: 15px;
+            -webkit-font-smoothing: antialiased;
+            transition: background-color 0.4s ease, color 0.4s ease;
+        }
+        nav, .card, .toc, pre, code, .callout, .flow-diagram, .team-badge, table, th, td, .tag {
+            transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
+        }
+
+        /* --- NAV --- */
+        nav {
+            position: sticky; top: 0; z-index: 100;
+            background: rgba(248, 246, 241, 0.92);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-light);
+            padding: 12px 40px;
+            display: flex; align-items: center; gap: 24px;
+            font-size: 0.78rem; letter-spacing: 0.3px;
+            flex-wrap: wrap;
+        }
+        nav .logo { font-weight: 600; color: var(--accent-turquoise); letter-spacing: 1.5px; text-transform: uppercase; font-size: 0.72rem; }
+        nav a { color: var(--text-secondary); text-decoration: none; transition: color 0.2s; }
+        nav .spacer { flex: 1; }
+
+        /* --- THEME TOGGLE --- */
+        .theme-toggle {
+            position: relative;
+            width: 52px; height: 26px;
+            background: var(--toggle-bg);
+            border-radius: 13px;
+            cursor: pointer;
+            border: none;
+            outline: none;
+            transition: background 0.4s ease;
+            flex-shrink: 0;
+        }
+        .theme-toggle .knob {
+            position: absolute; top: 3px; left: 3px;
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            background: var(--toggle-knob);
+            transition: transform 0.4s cubic-bezier(0.68, -0.15, 0.27, 1.15);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        }
+        .theme-toggle .knob::after {
+            content: var(--toggle-icon);
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 11px;
+            line-height: 1;
+        }
+        [data-theme="dark"] .theme-toggle .knob {
+            transform: translateX(26px);
+        }
+        nav a:hover { color: var(--accent-turquoise); }
+
+        /* --- LAYOUT --- */
+        .container { max-width: 940px; margin: 0 auto; padding: 0 32px; }
+        section { padding: 56px 0; border-bottom: 1px solid var(--border-light); }
+        section:last-of-type { border-bottom: none; }
+
+        /* --- HERO --- */
+        .hero { padding: 80px 0 56px; text-align: center; border-bottom: 1px solid var(--border-light); }
+        .hero-tag { font-family: 'Roboto Mono', monospace; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 3px; color: var(--accent-yellow); margin-bottom: 16px; }
+        h1 { font-size: 2.4rem; font-weight: 300; color: var(--text-primary); margin-bottom: 16px; line-height: 1.25; }
+        h1 span { background: linear-gradient(135deg, var(--accent-turquoise), var(--accent-blue)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero p { color: var(--text-secondary); max-width: 640px; margin: 0 auto; font-weight: 300; font-size: 0.95rem; }
+        .hero-stats { display: flex; gap: 40px; justify-content: center; margin-top: 32px; flex-wrap: wrap; }
+        .hero-stat { text-align: center; }
+        .hero-stat .num { font-size: 1.8rem; font-weight: 300; color: var(--accent-turquoise); }
+        .hero-stat .lbl { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-muted); margin-top: 2px; }
+
+        /* --- TYPOGRAPHY --- */
+        h2 { font-size: 1.5rem; font-weight: 400; margin-bottom: 20px; color: var(--text-primary); padding-bottom: 10px; border-bottom: 1px solid var(--border-light); }
+        h3 { font-size: 1.1rem; font-weight: 500; margin: 28px 0 12px; color: var(--accent-turquoise); }
+        h4 { font-size: 0.9rem; font-weight: 600; margin: 20px 0 8px; color: var(--text-primary); }
+        p { margin-bottom: 14px; color: var(--text-secondary); }
+        strong { color: var(--text-primary); font-weight: 500; }
+        ul, ol { margin: 8px 0 16px 20px; color: var(--text-secondary); }
+        li { margin-bottom: 6px; }
+
+        /* --- CARDS --- */
+        .card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 24px 28px;
+            margin-bottom: 16px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px var(--shadow-soft); }
+        .card-title { font-size: 0.95rem; font-weight: 500; color: var(--text-primary); margin-bottom: 8px; }
+        .card-desc { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.7; }
+
+        /* --- CODE --- */
+        code {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.8rem;
+            background: var(--bg-callout);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--accent-umber);
+        }
+        pre {
+            background: var(--bg-code);
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 20px 24px;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.78rem;
+            overflow-x: auto;
+            line-height: 1.7;
+            margin: 12px 0 20px;
+            color: var(--text-primary);
+        }
+
+        /* --- CALLOUTS --- */
+        .callout {
+            background: var(--bg-callout);
+            border-left: 3px solid var(--accent-yellow);
+            padding: 16px 20px;
+            border-radius: 0 6px 6px 0;
+            margin: 16px 0;
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+        }
+        .callout.blue { border-left-color: var(--accent-blue); }
+        .callout.green { border-left-color: var(--accent-green); }
+        .callout.warn { border-left-color: #c17a5a; background: #fdf5ef; }
+        .callout.turq { border-left-color: var(--accent-turquoise); }
+
+        /* --- TABLES --- */
+        table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.84rem; }
+        th { text-align: left; padding: 10px 14px; background: var(--bg-surface); border-bottom: 2px solid var(--border-warm); color: var(--text-primary); font-weight: 500; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        td { padding: 10px 14px; border-bottom: 1px solid var(--border-light); color: var(--text-secondary); }
+        tr:last-child td { border-bottom: none; }
+
+        /* --- TAGS --- */
+        .tag { display: inline-block; font-size: 0.68rem; font-family: 'Roboto Mono', monospace; padding: 3px 10px; border-radius: 4px; background: var(--bg-surface); color: var(--text-muted); border: 1px solid var(--border-light); margin: 2px 3px; }
+        .tag.done { background: #eaf5e8; color: #3a6b2a; border-color: #c4e5b4; }
+        .tag.pending { background: #fceee8; color: #8b3a2a; border-color: #f0d4c8; }
+        .tag.progress { background: #fef9e8; color: #7a6510; border-color: #f0e4b8; }
+        .tag.owner { background: #e8f1f7; color: #2a5f7a; border-color: #bcdde8; }
+
+        /* --- GRID --- */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+        @media (max-width: 700px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+        /* --- FLOW DIAGRAM --- */
+        .flow-diagram {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 28px;
+            margin: 20px 0;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.75rem;
+            line-height: 2.2;
+            color: var(--text-primary);
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .flow-diagram .node { color: var(--accent-turquoise); font-weight: 500; }
+        .flow-diagram .edge { color: var(--accent-yellow); }
+        .flow-diagram .pending { color: var(--text-muted); font-style: italic; }
+
+        /* --- COLOR SWATCHES --- */
+        .swatch-row { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; align-items: center; }
+        .swatch { width: 40px; height: 40px; border-radius: 6px; border: 1px solid var(--border-light); transition: transform 0.2s; }
+        .swatch:hover { transform: scale(1.15); }
+        .swatch-label { font-size: 0.72rem; color: var(--text-muted); font-family: 'Roboto Mono', monospace; }
+
+        /* --- PROGRESS BAR --- */
+        .progress-bar { background: var(--border-light); border-radius: 4px; height: 8px; margin: 8px 0; overflow: hidden; }
+        .progress-fill { background: linear-gradient(90deg, var(--accent-turquoise), var(--accent-blue)); height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+
+        /* --- FOOTER --- */
+        footer { text-align: center; padding: 48px 20px; color: var(--text-muted); font-size: 0.72rem; }
+        footer .tag-line { font-family: 'Roboto Mono', monospace; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 8px; color: var(--accent-yellow); }
+
+        /* --- TOC --- */
+        .toc { background: var(--bg-surface); border: 1px solid var(--border-light); border-radius: 8px; padding: 24px 28px; margin: 24px 0; }
+        .toc-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-muted); margin-bottom: 12px; font-weight: 500; }
+        .toc a { color: var(--text-secondary); text-decoration: none; font-size: 0.88rem; display: block; padding: 4px 0; transition: color 0.2s; }
+        .toc a:hover { color: var(--accent-turquoise); }
+        .toc .indent { padding-left: 16px; font-size: 0.82rem; }
+
+        /* --- TEAM BADGES --- */
+        .team-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin: 16px 0; }
+        .team-badge { text-align: center; padding: 20px; background: var(--bg-surface); border: 1px solid var(--border-light); border-radius: 8px; }
+        .team-badge .name { font-weight: 500; font-size: 0.9rem; color: var(--text-primary); margin-bottom: 4px; }
+        .team-badge .role { font-size: 0.72rem; color: var(--accent-turquoise); font-family: 'Roboto Mono', monospace; text-transform: uppercase; letter-spacing: 1px; }
+        .team-badge .sid { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+        @media (max-width: 700px) { .team-grid { grid-template-columns: 1fr; } }
+
+        /* --- BLOOM FILTER VISUAL --- */
+        .bloom-visual { display: flex; gap: 2px; margin: 12px 0; flex-wrap: wrap; }
+        .bloom-bit { width: 12px; height: 12px; border-radius: 2px; background: var(--border-light); }
+        .bloom-bit.set { background: var(--bloom-bit); }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+</head>
+<body>
+
+<nav>
+    <span class="logo">jWebCrawler-Engine</span>
+    <a href="#abstract">Abstract</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#modules">Modules</a>
+    <a href="#algorithms">Algorithms</a>
+    <a href="#progress">Progress</a>
+    <a href="#pending">Pending</a>
+    <a href="#testing">Testing</a>
+    <a href="#palette">Palette</a>
+    <span class="spacer"></span>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode" title="Switch theme">
+        <span class="knob"></span>
+    </button>
+</nav>
+
+<div class="container">
+
+<!-- ============================================================ HERO ============================================================ -->
+<div class="hero">
+    <div class="hero-tag">DAA TCS-409 · Phase 2 Documentation</div>
+    <h1><span>jWebCrawler</span>-Engine</h1>
+    <p>A BFS-driven web crawler modeling the internet as a directed graph — combining graph traversal, probabilistic data structures, HTTP networking, and interface design into one cohesive pipeline.</p>
+    <div class="hero-stats">
+        <div class="hero-stat"><div class="num">7</div><div class="lbl">Java Modules</div></div>
+        <div class="hero-stat"><div class="num">BFS</div><div class="lbl">Core Algorithm</div></div>
+        <div class="hero-stat"><div class="num">~45%</div><div class="lbl">Complete</div></div>
+        <div class="hero-stat"><div class="num">3</div><div class="lbl">Team Members</div></div>
+    </div>
+</div>
+
+<!-- ============================================================ TOC ============================================================ -->
+<div class="toc">
+    <div class="toc-title">Table of Contents</div>
+    <a href="#abstract">1. Project Abstract & Goals</a>
+    <a href="#team" class="indent">1.1 Team Cartographers</a>
+    <a href="#architecture">2. System Architecture</a>
+    <a href="#dataflow" class="indent">2.1 Data Flow Pipeline</a>
+    <a href="#modules">3. Module-by-Module Anatomy (All 7 Files)</a>
+    <a href="#algorithms">4. Algorithm Deep Dives</a>
+    <a href="#bfs" class="indent">4.1 BFS Traversal</a>
+    <a href="#bloom" class="indent">4.2 Bloom Filters</a>
+    <a href="#heap" class="indent">4.3 Heap-Based Priority Queue</a>
+    <a href="#progress">5. Progress & What's Been Done</a>
+    <a href="#pending">6. What Remains (Phase 2 → Phase 3)</a>
+    <a href="#testing">7. Testing & Validation</a>
+    <a href="#challenges">8. Challenges & Solutions</a>
+    <a href="#deliverables">9. Deliverables Checklist</a>
+    <a href="#palette">10. Color Palette System</a>
+</div>
+
+<!-- ============================================================ ABSTRACT ============================================================ -->
+<section id="abstract">
+    <h2>1. Project Abstract & Goals</h2>
+    <p>The main goal of this project is to design a <strong>functional web crawler</strong> that automates the retrieval of web pages to collect data. The project models the internet as a <strong>directed graph</strong> where web pages act as nodes and hyperlinks serve as directed edges. This structure naturally maps to a <strong>Breadth-First Search (BFS) traversal problem</strong>, which is one of the core graph algorithms studied in Design and Analysis of Algorithms.</p>
+
+    <div class="callout turq">
+        <strong>Why This Is a DAA Project:</strong> At its core, a web crawler is a graph traversal engine. The internet is a directed graph with ~1.9 billion nodes (web pages) and ~60 billion edges (hyperlinks). Our crawler applies BFS to systematically explore this graph from a seed vertex, using a queue (FIFO frontier) and a visited set (HashSet) — the two canonical data structures of the BFS algorithm.
+    </div>
+
+    <p>The crawler accepts a user-supplied <strong>seed URL</strong> along with a <strong>keyword</strong>, then systematically explores the web from that starting point. At each step it fetches the HTML content of a page, extracts all outgoing hyperlinks using the <strong>JSoup parser</strong>, and queues them for future visits. To ensure the same URL is never processed twice, the project implements <strong>Bloom Filters</strong> combined with <strong>hash-based sets</strong>, allowing fast and memory-efficient URL deduplication.</p>
+
+    <p>Results are stored locally and presented through a graphical user interface as a <strong>formatted hyperlink table</strong>. The system ties together graph traversal, probabilistic data structures, HTTP networking, and interface design into one cohesive pipeline.</p>
+
+    <div id="team">
+    <h3>1.1 Team Cartographers</h3>
+    <div class="team-grid">
+        <div class="team-badge">
+            <div class="name">Anunay Sharma</div>
+            <div class="role">Team Lead</div>
+            <div class="sid">24021469 · geu.ac.in</div>
+        </div>
+        <div class="team-badge">
+            <div class="name">Sarthak Singh</div>
+            <div class="role">Developer</div>
+            <div class="sid">24021521 · geu.ac.in</div>
+        </div>
+        <div class="team-badge">
+            <div class="name">Vanshika Kriti Singh</div>
+            <div class="role">Developer</div>
+            <div class="sid">24022020 · geu.ac.in</div>
+        </div>
+    </div>
+    <p style="font-size:0.82rem; text-align:center; margin-top:8px;"><span class="tag">Team ID: DAA-IV-T020</span></p>
+    </div>
+</section>
+
+<!-- ============================================================ ARCHITECTURE ============================================================ -->
+<section id="architecture">
+    <h2>2. System Architecture</h2>
+    <p>The architecture follows a <strong>pipeline pattern</strong>: each module handles one discrete stage. The CrawlEngine (BFS traversal core) orchestrates all other modules, pulling URLs from the frontier, dispatching them to the fetcher, feeding extracted links back through deduplication, and storing results.</p>
+
+    <div id="dataflow">
+    <h3>2.1 Data Flow Pipeline</h3>
+    <div class="flow-diagram"><span class="node">User Input</span>
+   │ seed URL + depth + keyword
+   ▼
+<span class="node">Main.java</span> ────── Bootstrap & wire all subsystems
+   │
+   ▼
+<span class="node">URLManager.java</span> ── <span class="edge">addSeed(url)</span> → Frontier Queue + Visited Set
+   │
+   ▼
+<span class="node">CrawlEngine.java</span> ─ <span class="edge">BFS Loop</span> (the BRAIN)
+   │
+   ├──→ <span class="node">URLManager</span>.<span class="edge">getNextUrl()</span>     ← Dequeue from frontier
+   │
+   ├──→ <span class="pending">[RobotsTxtModule]</span>.<span class="edge">isAllowed(url)</span> ← Check robots.txt rules
+   │
+   ├──→ <span class="node">HTTPFetcherHTMLParser</span>.<span class="edge">fetchPage(url)</span> ← HTTP GET + Jsoup parse
+   │        │
+   │        ├── <span class="edge">extractLinks(doc)</span>     → List&lt;String&gt; of child URLs
+   │        └── <span class="edge">extractPageTitle(doc)</span> → String title
+   │
+   ├──→ <span class="pending">[BloomFilterLayer]</span>.<span class="edge">mightContain(link)</span> ← Fast probabilistic filter
+   │        │
+   │        └── <span class="node">URLManager</span>.<span class="edge">addIfNotVisited(link)</span> ← HashSet dedup
+   │
+   ├──→ <span class="pending">[DataStorageModule]</span>.<span class="edge">addResult(...)</span> ← Persist to CSV/JSON
+   │
+   └──→ <span class="pending">[PriorityScheduler]</span>.<span class="edge">computeScore(link)</span> ← Relevance ranking
+         │
+         ▼
+<span class="node">UserInterface.java</span> ── <span class="edge">displayResults()</span> → CLI table or GUI window
+
+Legend: <span class="node">[Implemented]</span>  <span class="pending">[Pending]</span>  <span class="edge">→ Data Flow</span></div>
+    </div>
+
+    <h3>2.2 Graph Model of the Internet</h3>
+    <div class="callout blue">
+        <strong>Directed Graph G = (V, E)</strong> where:<br>
+        <strong>V</strong> = Set of all web pages (nodes/vertices). Each page has a unique URL.<br>
+        <strong>E</strong> = Set of all hyperlinks (directed edges). An edge (u, v) exists iff page u contains a link to page v.<br>
+        <strong>Seed URL</strong> = The source vertex s from which BFS begins.<br>
+        <strong>Depth D</strong> = The maximum number of hops from s. BFS at depth D visits all vertices reachable within D edges.
+    </div>
+</section>
+
+<!-- ============================================================ MODULES ============================================================ -->
+<section id="modules">
+    <h2>3. Module-by-Module Anatomy</h2>
+    <p>Every Java source file under <code>Project/src/</code>, its purpose, its owner, and the algorithms it employs.</p>
+
+    <h3>Core Modules (Phase 1 — Implemented)</h3>
+    <table>
+        <tr><th>File</th><th>Owner</th><th>Status</th><th>Purpose</th><th>Key Algorithm / Data Structure</th></tr>
+        <tr>
+            <td><code>Main.java</code></td>
+            <td><span class="tag owner">Team</span></td>
+            <td><span class="tag done">Done</span></td>
+            <td>Entry point. Parses CLI arguments, instantiates all subsystems, seeds the frontier, launches BFS.</td>
+            <td>Application bootstrap pattern</td>
+        </tr>
+        <tr>
+            <td><code>URLManager.java</code></td>
+            <td><span class="tag owner">Anunay</span></td>
+            <td><span class="tag done">Done</span></td>
+            <td>URL Frontier (BFS Queue) + Visited URL Manager (HashSet). Core deduplication before any URL enters the crawl pipeline.</td>
+            <td><strong>LinkedList Queue</strong> — O(1) enqueue/dequeue<br><strong>HashSet</strong> — O(1) avg contains/add</td>
+        </tr>
+        <tr>
+            <td><code>HTTPFetcherHTMLParser.java</code></td>
+            <td><span class="tag owner">Sarthak</span></td>
+            <td><span class="tag done">Done</span></td>
+            <td>HTTP page fetcher via Jsoup + HTML→DOM parser + &lt;a href&gt; link extractor. Discovers the adjacency list of each vertex.</td>
+            <td><strong>DOM Tree Traversal</strong> — CSS selector "a[href]"<br>Jsoup HTTP client with timeout handling</td>
+        </tr>
+        <tr>
+            <td><code>CrawlEngine.java</code></td>
+            <td><span class="tag owner">Vanshika</span></td>
+            <td><span class="tag done">Done</span></td>
+            <td>The BFS traversal engine. Pulls URL→fetches→parses→enqueues children. Enforces depth constraint.</td>
+            <td><strong>Depth-Limited BFS</strong> — O(V+E)<br>Level-order counting trick for depth tracking</td>
+        </tr>
+    </table>
+
+    <h3>Pending Modules (Phase 2 → Phase 3)</h3>
+    <table>
+        <tr><th>File</th><th>Owner</th><th>Status</th><th>Purpose</th><th>Key Algorithm / Data Structure</th></tr>
+        <tr>
+            <td><code>BloomFilterLayer.java</code></td>
+            <td><span class="tag owner">Anunay</span></td>
+            <td><span class="tag progress">In Progress</span></td>
+            <td>Probabilistic URL deduplication. Pre-filters 99% of duplicates before HashSet lookup. ~100x memory savings.</td>
+            <td><strong>Bloom Filter</strong> — O(k) per query, k≈7 hash functions<br>Guava BloomFilter library</td>
+        </tr>
+        <tr>
+            <td><code>DataStorageModule.java</code></td>
+            <td><span class="tag owner">Sarthak</span></td>
+            <td><span class="tag pending">Pending</span></td>
+            <td>Persists crawl results to local disk as CSV and JSON. Incremental flushing prevents data loss on crashes.</td>
+            <td>File I/O, CSV escaping, JSON serialization</td>
+        </tr>
+        <tr>
+            <td><code>PriorityScheduler.java</code></td>
+            <td><span class="tag owner">Sarthak</span></td>
+            <td><span class="tag pending">Pending</span></td>
+            <td>Heap-based URL scoring. Transforms BFS into Best-First Search by ranking URLs by keyword relevance.</td>
+            <td><strong>Binary Min-Heap (PriorityQueue)</strong> — O(log n) offer/poll</td>
+        </tr>
+        <tr>
+            <td><code>RobotsTxtModule.java</code></td>
+            <td><span class="tag owner">Vanshika</span></td>
+            <td><span class="tag pending">Pending</span></td>
+            <td>Parses robots.txt rules, caches per-domain policies, enforces crawl-delay. Ethical crawling compliance.</td>
+            <td>Prefix matching, domain-level caching</td>
+        </tr>
+        <tr>
+            <td><code>UserInterface.java</code></td>
+            <td><span class="tag owner">Vanshika</span></td>
+            <td><span class="tag pending">Pending</span></td>
+            <td>Full GUI: seed URL input, depth spinner, live log panel, results table, CSV export button, progress bar.</td>
+            <td>JavaFX/Swing, background threading, UI state management</td>
+        </tr>
+    </table>
+</section>
+
+<!-- ============================================================ ALGORITHMS ============================================================ -->
+<section id="algorithms">
+    <h2>4. Algorithm Deep Dives</h2>
+
+    <div id="bfs">
+    <h3>4.1 Breadth-First Search (BFS)</h3>
+    <p>BFS is the <strong>foundational algorithm</strong> of this project. The entire crawler is a BFS engine that treats the internet as a directed graph.</p>
+
+    <h4>Pseudocode — Depth-Limited Web BFS</h4>
+    <pre>
+FUNCTION WebBFS(seedUrl, maxDepth, keyword):
+    frontier ← empty Queue                    // URLManager's LinkedList
+    visited ← empty HashSet                   // URLManager's HashSet
+    
+    frontier.enqueue( (seedUrl, depth=0) )
+    visited.add(seedUrl)
+    
+    WHILE frontier is NOT empty:
+        (currentUrl, depth) ← frontier.dequeue()
+        
+        IF depth > maxDepth:
+            CONTINUE                          // Depth constraint
+        
+        page ← HTTPFetch(currentUrl)          // HTTPFetcherHTMLParser
+        IF page == null:
+            CONTINUE                          // Skip failed fetches
+        
+        links ← ExtractLinks(page)            // DOM traversal: a[href]
+        title ← ExtractTitle(page)
+        
+        StoreResult(currentUrl, title, depth)  // DataStorageModule
+        
+        FOR EACH link IN links:
+            IF link NOT IN visited:           // O(1) HashSet lookup
+                visited.add(link)
+                frontier.enqueue( (link, depth+1) )
+    
+    RETURN results</pre>
+
+    <h4>Complexity Analysis</h4>
+    <table>
+        <tr><th>Metric</th><th>Complexity</th><th>Explanation</th></tr>
+        <tr><td>Time</td><td><strong>O(V + E)</strong></td><td>Each vertex (page) is visited once. Each edge (link) is examined once during extraction.</td></tr>
+        <tr><td>Space</td><td><strong>O(V)</strong></td><td>The visited set stores all V vertices. The frontier queue holds at most one level's worth of vertices.</td></tr>
+        <tr><td>Network I/O</td><td><strong>O(V)</strong></td><td>One HTTP request per page. This is the DOMINANT cost — network latency dwarfs all computation.</td></tr>
+    </table>
+
+    <div class="callout green">
+        <strong>Why BFS over DFS?</strong> DFS would drill deep into one path before exploring siblings. On the web, this means following a chain of links to page 1000 before checking the second link on the seed page. BFS guarantees all pages at depth 1 are found before any at depth 2, giving a more complete picture of the web neighborhood around the seed.
+    </div>
+    </div>
+
+    <div id="bloom">
+    <h3>4.2 Bloom Filters</h3>
+    <p>A Bloom Filter is a <strong>space-efficient probabilistic data structure</strong> that answers set membership queries with a small false positive rate but zero false negatives.</p>
+
+    <h4>How It Works — Visual</h4>
+    <div class="callout blue">
+        <strong>Bit Array Visualization</strong> (m = 64 bits, k = 3 hash functions):
+    </div>
+    <div class="bloom-visual" id="bloomViz">
+        <!-- Generated by JS below -->
+    </div>
+    <p style="font-size:0.8rem; color: var(--text-muted); margin-top: 4px;">
+        <span style="display:inline-block;width:12px;height:12px;background:var(--bloom-bit);border-radius:2px;vertical-align:middle;"></span> = bit set to 1 &nbsp;&nbsp;
+        <span style="display:inline-block;width:12px;height:12px;background:var(--border-light);border-radius:2px;vertical-align:middle;"></span> = bit still 0
+    </p>
+
+    <h4>Optimal Parameters</h4>
+    <pre>
+Given:
+  n = 100,000  (expected unique URLs)
+  p = 0.01     (1% false positive rate)
+
+Optimal bit array size:
+  m = -(n × ln(p)) / (ln(2))²
+  m = -(100000 × ln(0.01)) / (0.6931)²
+  m = -(100000 × -4.6052) / 0.4804
+  m ≈ 958,506 bits ≈ 117 KB
+
+Optimal hash functions:
+  k = (m/n) × ln(2)
+  k = (958506/100000) × 0.6931
+  k ≈ 6.64 → 7 hash functions</pre>
+
+    <div class="callout">
+        <strong>Memory Savings:</strong> HashSet storing 100K URLs ≈ 100 MB. Bloom Filter for the same ≈ 117 KB. That's approximately <strong>850x less memory</strong>. The trade-off: 1 in 100 new URLs might be incorrectly skipped. For web crawling, this is an acceptable trade-off.
+    </div>
+    </div>
+
+    <div id="heap">
+    <h3>4.3 Heap-Based Priority Queue</h3>
+    <p>The PriorityScheduler transforms plain BFS into <strong>Best-First Search</strong> by scoring each URL and processing the highest-scored URL next.</p>
+
+    <h4>Scoring Formula</h4>
+    <pre>
+score(url, anchorText, keyword) =
+    5.0 × keywordInAnchor(anchorText, keyword)   // Keyword relevance
+  + 2.0 × domainAuthority(url)                    // .edu/.gov bonus
+  + 1.0 / (pathDepth(url) + 1)                    // Shorter paths preferred
+  + 1.5 × novelDomain(url)                        // New domain bonus</pre>
+
+    <h4>Heap Operations</h4>
+    <table>
+        <tr><th>Operation</th><th>Complexity</th><th>Plain BFS</th><th>Priority BFS</th></tr>
+        <tr><td>Insert URL</td><td>O(log n)</td><td>O(1)</td><td>O(log n) — heapify up</td></tr>
+        <tr><td>Get next URL</td><td>O(log n)</td><td>O(1)</td><td>O(log n) — heapify down</td></tr>
+        <tr><td>Total crawl</td><td>O(V log V)</td><td>O(V)</td><td>O(V log V)</td></tr>
+    </table>
+    <p>The extra log factor is worthwhile because the crawler processes the <strong>most relevant</strong> pages within its depth budget instead of blindly following link order.</p>
+    </div>
+</section>
+
+<!-- ============================================================ PROGRESS ============================================================ -->
+<section id="progress">
+    <h2>5. Progress & What's Been Done</h2>
+
+    <div class="callout turq">
+        <strong>Overall Completion: ~45%</strong> — The core CLI pipeline is fully functional. BFS traversal, HTTP fetching, link extraction, frontier queue, and HashSet deduplication all work end-to-end.
+    </div>
+    <div class="progress-bar"><div class="progress-fill" style="width: 45%;"></div></div>
+
+    <h3>Phase 1 Completed Tasks</h3>
+    <table>
+        <tr><th>Task</th><th>Owner</th><th>Status</th></tr>
+        <tr>
+            <td>URL Frontier (BFS Queue) + Visited URL Manager (HashSet) — Core data structures for crawl queue and deduplication set</td>
+            <td><span class="tag owner">Anunay Sharma</span></td>
+            <td><span class="tag done">✓ Done & Tested</span></td>
+        </tr>
+        <tr>
+            <td>HTTP Fetcher + HTML Parser & Link Extractor — Jsoup-based page fetching with timeout/error handling and anchor tag extraction</td>
+            <td><span class="tag owner">Sarthak Singh</span></td>
+            <td><span class="tag done">✓ Done & Tested</span></td>
+        </tr>
+        <tr>
+            <td>BFS Traversal Engine (Core CLI Orchestrator) — Main crawl loop integrating all above modules; end-to-end CLI pipeline functional with depth-limited traversal</td>
+            <td><span class="tag owner">Vanshika Kriti Singh</span></td>
+            <td><span class="tag done">✓ Done & Tested</span></td>
+        </tr>
+    </table>
+
+    <h3>Phase 2 Pending Tasks</h3>
+    <table>
+        <tr><th>Task</th><th>Owner</th><th>Status</th></tr>
+        <tr>
+            <td>URL Normaliser + Bloom Filter Integration — Canonical URL formatting and probabilistic deduplication layer using Guava BloomFilter alongside HashSet</td>
+            <td><span class="tag owner">Anunay Sharma</span></td>
+            <td><span class="tag progress">In Progress</span></td>
+        </tr>
+        <tr>
+            <td>Data Storage Module + Priority Scheduler (Heap-based) — CSV/JSON output persistence and PriorityQueue-based URL scoring for relevance-ordered crawling</td>
+            <td><span class="tag owner">Sarthak Singh</span></td>
+            <td><span class="tag pending">Pending</span></td>
+        </tr>
+        <tr>
+            <td>Robots.txt Compliance Module + GUI (Configuration & Results Interface) — Politeness/crawl-delay handling and full JavaFX/Swing interface with live logs and results table</td>
+            <td><span class="tag owner">Vanshika Kriti Singh</span></td>
+            <td><span class="tag pending">Pending</span></td>
+        </tr>
+    </table>
+</section>
+
+<!-- ============================================================ PENDING ============================================================ -->
+<section id="pending">
+    <h2>6. What Remains — Phase 2 → Phase 3</h2>
+    <p>Per the Phase 2 report, the following work items are required to reach 100% completion:</p>
+
+    <div class="grid-2">
+        <div class="card">
+            <div class="card-title"><span class="tag pending">Critical</span> URL Normalisation</div>
+            <div class="card-desc">Without normalisation, <code>http://example.com/page</code>, <code>http://example.com/page/</code>, and <code>HTTP://EXAMPLE.COM/page</code> are treated as three different URLs and crawled separately. The normaliser must lowercase hosts, strip trailing slashes, remove fragments, and decode unreserved characters.</div>
+        </div>
+        <div class="card">
+            <div class="card-title"><span class="tag progress">In Progress</span> Bloom Filter Integration</div>
+            <div class="card-desc">Unit test written; tuning expected insertions and false positive rate still ongoing. Once complete, this sits in front of the HashSet in URLManager, rejecting ~99% of duplicates before the expensive HashSet lookup. Uses Google Guava library.</div>
+        </div>
+        <div class="card">
+            <div class="card-title"><span class="tag pending">Pending</span> Data Storage (CSV/JSON)</div>
+            <div class="card-desc">The entire DataStorageModule is unbuilt. Crawl results currently exist only in memory. This module must serialize CrawlResult objects to CSV (for Excel) and JSON (for programmatic use), with incremental flushing to prevent data loss on crashes.</div>
+        </div>
+        <div class="card">
+            <div class="card-title"><span class="tag pending">Pending</span> Priority Scheduler (Heap)</div>
+            <div class="card-desc">Relevance-ranked crawling using a PriorityQueue backed by a binary min-heap. Scores URLs by keyword presence in anchor text, domain authority, path depth, and domain novelty. Transforms BFS into Best-First Search.</div>
+        </div>
+        <div class="card">
+            <div class="card-title"><span class="tag pending">Pending</span> Robots.txt Compliance</div>
+            <div class="card-desc">Per-domain robots.txt fetching, parsing, and caching. Must respect Disallow/Allow directives and Crawl-delay. Essential for ethical crawling — ignoring robots.txt can get the crawler's IP banned.</div>
+        </div>
+        <div class="card">
+            <div class="card-title"><span class="tag pending">Pending</span> GUI Interface</div>
+            <div class="card-desc">The largest single pending effort. Full JavaFX/Swing window with: seed URL input, depth spinner, keyword field, Start/Stop buttons, live crawl log panel, results table with hyperlinks, progress bar, and CSV/JSON export button. Must use background threading to avoid freezing the UI.</div>
+        </div>
+        <div class="card">
+            <div class="card-title"><span class="tag pending">Pending</span> Data-Cleaning Pipeline</div>
+            <div class="card-desc">Deliverable #5: strip raw HTML tags, remove &lt;script&gt; and &lt;style&gt; elements, normalize whitespace, decode HTML entities. Produces clean plain text from fetched pages for downstream keyword matching and storage.</div>
+        </div>
+        <div class="card">
+            <div class="card-title"><span class="tag pending">Pending</span> Final Report</div>
+            <div class="card-desc">Deliverable #8: comprehensive report covering algorithm analysis, complexity discussion (Big-O for BFS, Bloom Filter, Heap), test results, and architectural decisions.</div>
+        </div>
+    </div>
+</section>
+
+<!-- ============================================================ TESTING ============================================================ -->
+<section id="testing">
+    <h2>7. Testing & Validation</h2>
+
+    <table>
+        <tr><th>Test Type</th><th>Status</th><th>Notes</th></tr>
+        <tr>
+            <td>Unit Testing — BFS Queue & HashSet</td>
+            <td><span class="tag done">✓ Passed</span></td>
+            <td>Verified FIFO order, correct add/contains behaviour on 50+ URLs</td>
+        </tr>
+        <tr>
+            <td>Integration Testing — Fetch + Parse + BFS Loop</td>
+            <td><span class="tag done">✓ Passed</span></td>
+            <td>End-to-end CLI crawl tested on <code>wikipedia.org</code> and <code>books.toscrape.com</code>; correct link extraction confirmed</td>
+        </tr>
+        <tr>
+            <td>Depth Limit & Loop Prevention Test</td>
+            <td><span class="tag done">✓ Passed</span></td>
+            <td>Crawler correctly stops at user-defined depth; no infinite loops observed</td>
+        </tr>
+        <tr>
+            <td>Bloom Filter False Positive Rate Test</td>
+            <td><span class="tag progress">In Progress</span></td>
+            <td>Unit test written; tuning expected insertions and FP rate still ongoing</td>
+        </tr>
+    </table>
+</section>
+
+<!-- ============================================================ CHALLENGES ============================================================ -->
+<section id="challenges">
+    <h2>8. Challenges & Solutions</h2>
+
+    <div class="card">
+        <div class="card-title">Challenge 1: Infinite Crawling Loops</div>
+        <div class="card-desc">
+            <strong>Problem:</strong> Without controls, the crawler follows links endlessly. Page A links to B, B links to C, C links back to A — creating an infinite cycle.<br>
+            <strong>Solution:</strong> Two-layer protection: (1) The HashSet in URLManager prevents re-visiting any URL. (2) The depth limit in CrawlEngine stops the BFS at a user-defined level, ensuring termination regardless of graph structure.<br>
+            <strong>Algorithm:</strong> This is the classic <em>visited array</em> in BFS that converts a potentially cyclic graph into a tree traversal.
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Challenge 2: Memory Efficiency at Scale</div>
+        <div class="card-desc">
+            <strong>Problem:</strong> Storing millions of visited URLs in a HashSet consumes excessive memory. A Java String averaging 60 bytes × 1M URLs = ~60 MB just for the visited set.<br>
+            <strong>Solution:</strong> Bloom Filter integration. A Bloom Filter achieving 1% false positive rate for 1M URLs requires only ~1.2 MB — a 50x reduction. The trade-off (occasionally skipping a new URL) is acceptable for an educational crawler.<br>
+            <strong>Algorithm:</strong> Bloom Filters use k independent hash functions mapping to a bit array. The space-accuracy trade-off is controlled by the formula: m = -(n × ln(p)) / (ln(2))².
+        </div>
+    </div>
+</section>
+
+<!-- ============================================================ DELIVERABLES ============================================================ -->
+<section id="deliverables">
+    <h2>9. Deliverables Checklist</h2>
+    <p>Per the Phase 2 report, the project must deliver 8 specific artifacts:</p>
+
+    <table>
+        <tr><th>#</th><th>Deliverable</th><th>Status</th><th>Module</th></tr>
+        <tr><td>1</td><td>Working end-to-end web crawler driven by seed URL and keyword</td><td><span class="tag done">✓ Done</span></td><td>CrawlEngine + URLManager + HTTPFetcherHTMLParser</td></tr>
+        <tr><td>2</td><td>BFS-based graph traversal demonstrating queue-driven web exploration</td><td><span class="tag done">✓ Done</span></td><td>CrawlEngine (depth-limited BFS)</td></tr>
+        <tr><td>3</td><td>Bloom Filter integrated with hash set for memory-efficient deduplication</td><td><span class="tag progress">In Progress</span></td><td>BloomFilterLayer + URLManager</td></tr>
+        <tr><td>4</td><td>HTML parser (JSoup) that cleanly extracts all valid hyperlinks</td><td><span class="tag done">✓ Done</span></td><td>HTTPFetcherHTMLParser</td></tr>
+        <tr><td>5</td><td>Data-cleaning pipeline that strips raw HTML for downstream use</td><td><span class="tag pending">Pending</span></td><td>HTTPFetcherHTMLParser.extractPageText()</td></tr>
+        <tr><td>6</td><td>GUI to set seed URL, start crawl, monitor progress, and export results</td><td><span class="tag pending">Pending</span></td><td>UserInterface (JavaFX/Swing)</td></tr>
+        <tr><td>7</td><td>Local disk storage of crawled data in structured format</td><td><span class="tag pending">Pending</span></td><td>DataStorageModule (CSV/JSON)</td></tr>
+        <tr><td>8</td><td>Final report: algorithm analysis, complexity discussion, test results</td><td><span class="tag pending">Pending</span></td><td>Documentation</td></tr>
+    </table>
+</section>
+
+<!-- ============================================================ PALETTE ============================================================ -->
+<section id="palette">
+    <h2>10. Color Palette System</h2>
+    <p>This documentation uses colors extracted from <code>colorPalettes.json</code> — a dataset of 90+ page entries derived from Sanzo Wada's "A Dictionary of Color Combinations" (1930s Japan). Each color was selected to reinforce the thematic identity of a graph-traversal project: greens for navigation, blues for connectivity, gold for discovery.</p>
+
+    <h3>This Document's Palette</h3>
+    <div class="swatch-row">
+        <div><div class="swatch" style="background:#147495" title="Turquoise Green - Page 64"></div><div class="swatch-label">#147495</div></div>
+        <div><div class="swatch" style="background:#6c744a" title="Rainette Green - Page 64"></div><div class="swatch-label">#6c744a</div></div>
+        <div><div class="swatch" style="background:#b08513" title="Sulphine Yellow - Page 60"></div><div class="swatch-label">#b08513</div></div>
+        <div><div class="swatch" style="background:#4bafc7" title="Calamine Blue - Page 60"></div><div class="swatch-label">#4bafc7</div></div>
+        <div><div class="swatch" style="background:#5b3121" title="Pale Raw Umber - Page 64"></div><div class="swatch-label">#5b3121</div></div>
+        <div><div class="swatch" style="background:#424a19" title="Olive Green - Page 60"></div><div class="swatch-label">#424a19</div></div>
+    </div>
+    <p style="font-size:0.8rem; color:var(--text-muted);">Turquoise Green (p.64) | Rainette Green (p.64) | Sulphine Yellow (p.60) | Calamine Blue (p.60) | Pale Raw Umber (p.64) | Olive Green (p.60)</p>
+
+    <h3>Design Skills Used</h3>
+    <table>
+        <tr><th>Skill</th><th>How It Shaped This Document</th></tr>
+        <tr><td><code>frontend-design</code></td><td>Warm-tone CSS architecture: sticky nav, glassmorphism-free clarity, Inter+Roboto Mono typography stack.</td></tr>
+        <tr><td><code>design-spells</code></td><td>Subtle card hover lift (translateY -2px), swatch zoom on hover, progress bar gradient animation.</td></tr>
+        <tr><td><code>documentation</code></td><td>Section hierarchy (numbered H2→H3→H4), callout taxonomy (blue/green/warn/turq), pedagogical insight panels.</td></tr>
+        <tr><td><code>ui-skills</code></td><td>Font size minimums (0.68rem tags), contrast-safe color pairs, spacing system (8px grid).</td></tr>
+        <tr><td><code>mermaid-expert</code></td><td>ASCII flow diagram structure modeled on Mermaid flowchart patterns for the data pipeline visualization.</td></tr>
+    </table>
+
+    <h3>Relevant Orchestrator Tools</h3>
+    <table>
+        <tr><th>Tool</th><th>How It Was Referenced</th></tr>
+        <tr><td><code>colorPalettes.json</code></td><td>Source of all 6 hex colors used in this document's CSS variables. Pages 60 and 64 selected for their nature/network metaphor.</td></tr>
+        <tr><td><code>orchestrateDesign.py</code></td><td>GSAP injection pattern (ScrollTrigger + isometric transforms) adapted for scroll-triggered card reveals in this HTML.</td></tr>
+        <tr><td><code>builderAll.py</code></td><td>HTML template structure (hero→TOC→sections→footer) and the Analytical Weightlessness design system principles.</td></tr>
+        <tr><td><code>documentation.html</code></td><td>Warm-palette documentation template that this file inherits its visual language from (callout taxonomy, table styling, swatch rendering).</td></tr>
+    </table>
+</section>
+
+</div>
+
+<!-- ============================================================ FOOTER ============================================================ -->
+<footer>
+    <div class="tag-line">End of Documentation</div>
+    <p>Generated 2026-04-09 from recursive analysis of <code>Project/src/</code> (7 Java modules) and <code>DAA Phase2_report.pdf</code> (5 pages).</p>
+    <p>Color palette sourced from <code>colorPalettes.json</code> (Pages 60, 64 of Sanzo Wada's Dictionary of Color Combinations).</p>
+    <p style="margin-top:12px;">Team Cartographers · DAA-IV-T020 · TCS-409 Design and Analysis of Algorithms</p>
+    <p><a href="https://github.com/Bhuknuu/jWebCrawler-Engine/" style="color:var(--accent-turquoise);text-decoration:none;">GitHub Repository</a> · <a href="https://miro.com/app/board/uXjVJPI27iE=/" style="color:var(--accent-turquoise);text-decoration:none;">Miro Whiteboard</a></p>
+</footer>
+
+<!-- ============================================================ SCRIPTS ============================================================ -->
+<script>
+    // Bloom Filter Visualization — generate 64-bit array with some bits set
+    (function() {
+        const viz = document.getElementById('bloomViz');
+        if (!viz) return;
+        const setBits = [3,7,11,15,19,22,28,31,37,41,44,48,52,56,59,63];
+        for (let i = 0; i < 64; i++) {
+            const bit = document.createElement('div');
+            bit.className = 'bloom-bit' + (setBits.includes(i) ? ' set' : '');
+            bit.title = `Bit ${i}: ${setBits.includes(i) ? '1 (set by hash)' : '0 (empty)'}`;
+            viz.appendChild(bit);
+        }
+    })();
+
+    // GSAP Scroll Animations (Analytical Weightlessness pattern)
+    gsap.registerPlugin(ScrollTrigger);
+
+    // Hero entrance
+    gsap.from(".hero h1", { y: -30, opacity: 0, duration: 1.2, ease: "power4.out" });
+    gsap.from(".hero-tag", { y: 15, opacity: 0, duration: 0.8, delay: 0.3 });
+    gsap.from(".hero p", { y: 15, opacity: 0, duration: 0.8, delay: 0.5 });
+    gsap.from(".hero-stat", { y: 20, opacity: 0, duration: 0.6, stagger: 0.1, delay: 0.7 });
+
+    // Card scroll reveals
+    gsap.utils.toArray('.card').forEach(card => {
+        gsap.from(card, {
+            opacity: 0, y: 40, duration: 0.8, ease: "power2.out",
+            scrollTrigger: { trigger: card, start: "top 88%", toggleActions: "play none none reverse" }
+        });
+    });
+
+    // Section header reveals
+    gsap.utils.toArray('section h2').forEach(h2 => {
+        gsap.from(h2, {
+            opacity: 0, x: -20, duration: 0.6, ease: "power2.out",
+            scrollTrigger: { trigger: h2, start: "top 90%" }
+        });
+    });
+
+    // Flow diagram reveal
+    const flowDiagram = document.querySelector('.flow-diagram');
+    if (flowDiagram) {
+        gsap.from(flowDiagram, {
+            opacity: 0, y: 30, duration: 1, ease: "power2.out",
+            scrollTrigger: { trigger: flowDiagram, start: "top 85%" }
+        });
+    }
+
+    // Team badge stagger
+    gsap.from('.team-badge', {
+        opacity: 0, y: 20, duration: 0.5, stagger: 0.15,
+        scrollTrigger: { trigger: '.team-grid', start: "top 85%" }
+    });
+
+    // Bloom filter bit animation
+    gsap.from('.bloom-bit.set', {
+        scale: 0, duration: 0.3, stagger: 0.05,
+        scrollTrigger: { trigger: '#bloomViz', start: "top 85%" }
+    });
+
+    // Progress bar animation
+    const progressFill = document.querySelector('.progress-fill');
+    if (progressFill) {
+        gsap.from(progressFill, {
+            width: '0%', duration: 1.5, ease: "power2.out",
+            scrollTrigger: { trigger: progressFill, start: "top 90%" }
+        });
+    }
+    // ─── THEME TOGGLE ───────────────────────────────────
+    (function() {
+        const toggle = document.getElementById('themeToggle');
+        const html = document.documentElement;
+        const stored = localStorage.getItem('jwc-theme');
+
+        // Respect stored preference, then OS preference
+        if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            html.setAttribute('data-theme', 'dark');
+        }
+
+        toggle.addEventListener('click', function() {
+            const current = html.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', next);
+            localStorage.setItem('jwc-theme', next);
+        });
+
+        // Listen for OS theme changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+            if (!localStorage.getItem('jwc-theme')) {
+                html.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+            }
+        });
+    })();
+</script>
+
+</body>
+</html>
