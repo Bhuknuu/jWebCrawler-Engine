@@ -9,35 +9,32 @@ public class UserInterface {
 
     private static final String DEFAULT_SEED = "https://books.toscrape.com";
     private static final int DEFAULT_DEPTH = 2;
+    private static final int DEFAULT_MAXPAGE = 300;
 
     /**
-     * Curated seed suggestions organized by research domain.
+     * seed suggestions organized by research domain.
      * Each entry: { purpose, seed URL, description }
      */
     private static final String[][] SEED_SUGGESTIONS = {
         {"General Web Crawl",
          "https://books.toscrape.com",
-         "Safe sandbox for testing (1000 fake book pages, no rate limits)"},
+         "for testing"},
 
         {"Academic Research",
          "https://en.wikipedia.org/wiki/Main_Page",
-         "Wikipedia main page, largest open encyclopedia"},
+         "Wikipedia main page"},
 
         {"Computer Science",
          "https://en.wikipedia.org/wiki/Algorithm",
-         "Graph theory, data structures, algorithm taxonomy"},
+         "Graph theory, DSA, algorithm"},
 
         {"Medical / Pharmacology",
          "https://en.wikipedia.org/wiki/Pharmacology",
          "Drug classifications, clinical trials, drug interactions"},
 
-        {"Prehistoric Art / Archaeology",
-         "https://en.wikipedia.org/wiki/Prehistoric_art",
-         "Cave paintings, Venus figurines, megalithic art"},
-
         {"Art History Archive",
          "https://smarthistory.org",
-         "Smarthistory (Khan Academy partner), museum-grade art essays"},
+         "Smarthistory , museum-grade art essays"},
 
         {"Ancient Civilizations",
          "https://en.wikipedia.org/wiki/Ancient_history",
@@ -92,9 +89,6 @@ public class UserInterface {
         return new String[] { seedUrl, String.valueOf(maxDepth), keyword, String.valueOf(maxPages) };
     }
 
-    /**
-     * Prints the welcome banner.
-     */
     private static void printBanner() {
         System.out.println();
         System.out.println("  ╔══════════════════════════════════════════╗");
@@ -103,32 +97,22 @@ public class UserInterface {
         System.out.println();
     }
 
-    /**
-     * Displays curated seed URL suggestions grouped by domain.
-     */
     private static void printSeedSuggestions() {
-        System.out.println("  Suggested Seeds (enter the number or type your own URL):");
-        System.out.println("  --------------------------------------------------------");
+        System.out.println("  Suggested Seeds (Enter the number or type your own URL):");
         for (int i = 0; i < SEED_SUGGESTIONS.length; i++) {
-            System.out.printf("   [%2d]  %-28s  %s%n",
+            System.out.printf("   [%2d]  %-25s %-58s  %s%n",
                 i + 1,
                 SEED_SUGGESTIONS[i][0],
-                SEED_SUGGESTIONS[i][2]);
-            System.out.printf("         %s%n", SEED_SUGGESTIONS[i][1]);
+                SEED_SUGGESTIONS[i][2],
+                SEED_SUGGESTIONS[i][1]);
+//            System.out.printf("         %s%n", );
         }
-        System.out.println("  --------------------------------------------------------");
-        System.out.printf("   [  ]  Press ENTER for default: %s%n", DEFAULT_SEED);
+        System.out.printf("\n   Press ENTER for default: %s%n", DEFAULT_SEED);
         System.out.println();
     }
 
-    /**
-     * Prompts for seed URL. Accepts:
-     *   - A number (1-15) to pick from suggestions
-     *   - A full URL starting with http/https
-     *   - Empty input for the default
-     */
     public static String promptSeedUrl(Scanner scanner) {
-        System.out.print("  Seed URL (number, URL, or ENTER for default): ");
+        System.out.print("  [INPUT] Seed URL (number, URL, or ENTER for default): ");
         String input = scanner.nextLine().strip();
 
         if (input.isEmpty()) {
@@ -156,7 +140,6 @@ public class UserInterface {
             System.out.println("  Prepending https:// automatically.");
             input = "https://" + input;
         }
-
         return input;
     }
 
@@ -164,11 +147,6 @@ public class UserInterface {
      * Prompts for depth with sensible defaults and explanation.
      */
     public static int promptDepth(Scanner scanner) {
-        System.out.println();
-        System.out.println("  Depth controls how many link-hops from the seed to explore:");
-        System.out.println("    1 = seed page only + its direct links (~50-200 pages)");
-        System.out.println("    2 = two levels deep (~500-5000 pages)");
-        System.out.println("    3 = three levels deep (can be 10,000+ pages, slower)");
         System.out.println();
         System.out.print("  Max depth (0-10, ENTER for default " + DEFAULT_DEPTH + "): ");
 
@@ -200,9 +178,6 @@ public class UserInterface {
      */
     public static String promptKeyword(Scanner scanner) {
         System.out.println();
-        System.out.println("  Keyword filtering marks pages that contain your search term.");
-        System.out.println("  Examples: \"prehistoric paintings\", \"machine learning\", \"DNA\"");
-        System.out.println();
         System.out.print("  Search keyword (ENTER to skip): ");
 
         String keyword = scanner.nextLine().strip();
@@ -214,22 +189,14 @@ public class UserInterface {
         return keyword;
     }
 
-    /**
-     * Prompts for max pages to crawl.
-     */
     public static int promptMaxPages(Scanner scanner) {
         System.out.println();
-        System.out.println("  Max pages limits total pages crawled (prevents runaway BFS):");
-        System.out.println("    50  = quick scan (~15 seconds)");
-        System.out.println("    100 = moderate scan (~30 seconds)");
-        System.out.println("    500 = deep scan (~3 minutes)");
-        System.out.println();
-        System.out.print("  Max pages (10-1000, ENTER for default 100): ");
+        System.out.print("  Max pages [10-1000, default "+DEFAULT_MAXPAGE+"]: ");
 
         String input = scanner.nextLine().strip();
         if (input.isEmpty()) {
-            System.out.println("  Using default: 100 pages");
-            return 100;
+            System.out.println("  Using default: "+DEFAULT_MAXPAGE+" pages");
+            return DEFAULT_MAXPAGE;
         }
         try {
             int pages = Integer.parseInt(input);
@@ -243,8 +210,8 @@ public class UserInterface {
             }
             return pages;
         } catch (NumberFormatException e) {
-            System.out.println("  Invalid number. Using default: 100 pages");
-            return 100;
+            System.out.println("  Invalid number. Using default: "+DEFAULT_MAXPAGE+" pages");
+            return DEFAULT_MAXPAGE;
         }
     }
 
@@ -260,7 +227,6 @@ public class UserInterface {
         System.out.println("    Depth     : " + maxDepth);
         System.out.println("    Max pages : " + maxPages);
         System.out.println("    Keyword   : " + (keyword.isEmpty() ? "(none)" : "\"" + keyword + "\""));
-        System.out.println("    Scoping   : same-domain only");
         System.out.println("  ========================================");
     }
 
@@ -269,7 +235,7 @@ public class UserInterface {
      */
     public static boolean confirmStart(Scanner scanner) {
         System.out.println();
-        System.out.print("  Start crawling? (Y/n): ");
+        System.out.print("  [INPUT] Start crawling? (Y/n): ");
         String input = scanner.nextLine().strip().toLowerCase();
         return input.isEmpty() || input.equals("y") || input.equals("yes");
     }
@@ -288,13 +254,12 @@ public class UserInterface {
         System.out.println("    Crawl Results (" + results.size() + " pages)");
         System.out.println("  ════════════════════════════════════════════════════════");
 
-        System.out.printf("  %-5s  %-50s  %-25s  %-5s  %-7s  %-5s%n",
-            "#", "URL", "Title", "Depth", "Time", "Match");
+        System.out.printf("  %-5s  %-50s  %-25s  %-5s  %-10s  %-5s%n","#", "URL", "Title", "Depth", "Time", "Match");
         System.out.println("  " + "-".repeat(105));
 
         for (int i = 0; i < results.size(); i++) {
             DataStorageModule.CrawlResult r = results.get(i);
-            System.out.printf("  %-5d  %-50s  %-25s  %-5d  %-7s  %-5s%n",
+            System.out.printf("  %-5d  %-50s  %-25s  %-5d  %-10s  %-5s%n",
                 i + 1,
                 truncate(r.url, 50),
                 truncate(r.title, 25),
