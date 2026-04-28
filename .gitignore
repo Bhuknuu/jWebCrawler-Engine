@@ -1,3 +1,4 @@
+Project/src/out/
 # Default ignored files
 /shelf/
 /workspace.xml
@@ -9,3 +10,4 @@
 /dataSources/
 /dataSources.local.xml
 D:/Programs/Java/jWebCrawler-Engine/crawl_output
+crawl_output

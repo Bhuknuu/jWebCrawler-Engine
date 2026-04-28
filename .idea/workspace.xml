@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="9e696010-3e05-4952-9dee-dab22989e756" name="Changes" comment="ADDED Documentation And debug report" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Class" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="INCOMING_COMMITS_CHECK_STRATEGY" value="FETCH" />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;Bhuknuu&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/Bhuknuu/jWebCrawler-Engine.git&quot;,
+    &quot;accountId&quot;: &quot;78f94e94-e18e-447a-a510-9eadacba1d57&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 4,
+  &quot;fromUser&quot;: false
+}</component>
+  <component name="ProjectId" id="3BUD4CWwyCCHFQDnZHY6virXVC6" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Application.Main.executor&quot;: &quot;Run&quot;,
+    &quot;JavaScript Debug.jWebCrawler_Documentation.html.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;git.auto.fetch.suggestion.counter&quot;: &quot;1&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="9e696010-3e05-4952-9dee-dab22989e756" name="Changes" comment="" />
+      <created>1774534561746</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1774534561746</updated>
+      <workItem from="1774534562763" duration="31000" />
+      <workItem from="1774534605378" duration="612000" />
+      <workItem from="1774535238774" duration="6000" />
+      <workItem from="1774712406832" duration="2073000" />
+      <workItem from="1775562592233" duration="11000" />
+      <workItem from="1775670977910" duration="4948000" />
+      <workItem from="1775707688543" duration="3156000" />
+      <workItem from="1775718262784" duration="1955000" />
+      <workItem from="1775721667299" duration="2236000" />
+      <workItem from="1775758651144" duration="86000" />
+      <workItem from="1775788211727" duration="4515000" />
+      <workItem from="1775883601325" duration="25000" />
+    </task>
+    <task id="LOCAL-00001" summary="Made the main java class file.">
+      <option name="closed" value="true" />
+      <created>1774535163388</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1774535163388</updated>
+    </task>
+    <task id="LOCAL-00002" summary="Completed the Phase 2 Part of PBL">
+      <option name="closed" value="true" />
+      <created>1775711100371</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1775711100371</updated>
+    </task>
+    <task id="LOCAL-00003" summary="Included adocumentation.html file for Users Only interest about this file and Understanding the file much better And changed some Parameters in Main crawl engine http fetch http parts and url manager For limit control And efficiency">
+      <option name="closed" value="true" />
+      <created>1775758726847</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1775758726847</updated>
+    </task>
+    <task id="LOCAL-00004" summary="Made some polishing in the UI">
+      <option name="closed" value="true" />
+      <created>1775791814693</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1775791814693</updated>
+    </task>
+    <task id="LOCAL-00005" summary="ADDED Documentation And debug report">
+      <option name="closed" value="true" />
+      <created>1775792071810</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1775792071810</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="main" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+            </State>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Made the main java class file." />
+    <MESSAGE value="Completed the Phase 2 Part of PBL" />
+    <MESSAGE value="Included adocumentation.html file for Users Only interest about this file and Understanding the file much better And changed some Parameters in Main crawl engine http fetch http parts and url manager For limit control And efficiency" />
+    <MESSAGE value="Made some polishing in the UI" />
+    <MESSAGE value="ADDED Documentation And debug report" />
+    <option name="LAST_COMMIT_MESSAGE" value="ADDED Documentation And debug report" />
+  </component>
+</project>
