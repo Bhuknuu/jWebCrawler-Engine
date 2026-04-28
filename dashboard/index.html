@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>jWebCrawler — StarBrief Engine</title>
+  <meta name="description" content="Real-time force-directed graph visualization of the jWebCrawler BFS traversal engine." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- SETUP OVERLAY (Neo-Brutalist) -->
+  <div class="setup-overlay" id="view-setup">
+    <div class="setup-card animate-fade-in">
+      <div class="setup-header">
+        <h1 class="heading-black">jWebCrawler Engine</h1>
+        <p class="label-mono">Configure Crawl Parameters</p>
+      </div>
+      
+      <form id="setup-form" novalidate>
+        <div class="form-group">
+          <label for="seed-url" class="label-mono">Seed URL *</label>
+          <input type="url" id="seed-url" name="seedUrl" required 
+                 placeholder="https://example.com" 
+                 aria-describedby="seed-url-desc">
+          <span class="form-hint" id="seed-url-desc">The starting page for the BFS crawl.</span>
+        </div>
+
+        <div class="form-row flex gap-4">
+          <div class="form-group w-1/2">
+            <label for="max-depth" class="label-mono">Max Depth</label>
+            <input type="number" id="max-depth" name="maxDepth" min="1" max="10" value="3" required>
+            <span class="form-hint">BFS hops (1–10).</span>
+          </div>
+          <div class="form-group w-1/2">
+            <label for="max-pages" class="label-mono">Max Pages</label>
+            <input type="number" id="max-pages" name="maxPages" min="1" max="10000" value="100" required>
+            <span class="form-hint">Hard page cap.</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="keyword" class="label-mono">Keyword (optional)</label>
+          <input type="text" id="keyword" name="keyword" placeholder="e.g. machine learning">
+          <span class="form-hint">Highlight pages containing this term.</span>
+        </div>
+
+        <div class="form-actions mt-4">
+          <button type="submit" class="btn btn-primary w-full" id="btn-start-crawl">
+            Start Crawl
+          </button>
+          <p id="form-error" class="form-error mt-2" role="alert" aria-live="polite" hidden></p>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div class="app-shell flex-col" id="app" style="display: none;">
+
+    <!-- TOP HEADER -->
+    <header class="app-header flex justify-between items-center px-6 py-4">
+      <div class="brand flex items-center gap-2">
+        <span class="brand-icon" aria-hidden="true">■</span>
+        <div>
+          <h1 class="heading-black m-0 leading-tight">Crawl Network</h1>
+          <p class="label-mono m-0">Live Topology</p>
+        </div>
+      </div>
+      
+      <div class="header-controls flex items-center gap-6">
+        <div class="status-indicator flex items-center gap-2">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-text" class="label-mono font-bold">Connecting...</span>
+        </div>
+        <button type="button" class="btn btn-secondary" id="btn-reset">Reset Engine</button>
+      </div>
+    </header>
+
+    <div class="main-layout flex flex-1 overflow-hidden">
+      <!-- LEFT SIDEBAR -->
+      <aside class="sidebar flex-col p-6 overflow-y-auto">
+        <div class="stats-grid grid grid-cols-2 gap-4">
+          <div class="stat-card">
+            <span class="stat-key label-mono block">Nodes</span>
+            <span class="stat-value heading-black text-2xl" id="stat-nodes">0</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-key label-mono block">Edges</span>
+            <span class="stat-value heading-black text-2xl" id="stat-edges">0</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-key label-mono block">Max Depth</span>
+            <span class="stat-value heading-black text-2xl" id="stat-depth">0</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-key label-mono block">Matches</span>
+            <span class="stat-value heading-black text-2xl" id="stat-matches">0</span>
+          </div>
+        </div>
+
+        <div class="sidebar-divider my-6"></div>
+
+        <div class="domain-panel flex-1">
+          <h2 class="label-mono mb-4 font-bold border-b pb-2">Discovered Domains</h2>
+          <ul class="domain-list" id="domain-list" aria-label="Crawled domains list">
+            <li class="domain-item--empty label-mono" id="domain-empty">Awaiting crawl data&hellip;</li>
+          </ul>
+        </div>
+      </aside>
+
+      <!-- GRAPH CANVAS -->
+      <main class="graph-container flex-1 relative bg-workspace border-l border-r border-border-light">
+        <div id="cy" class="absolute inset-0" role="application" aria-label="Interactive graph visualization of the crawled network"></div>
+        
+        <div class="graph-loading absolute inset-0 flex items-center justify-center bg-workspace/80 backdrop-blur" id="graph-loading">
+          <p class="label-mono font-bold text-lg">Crawling — first nodes arriving soon&hellip;</p>
+        </div>
+
+        <!-- Error Banner overlaying graph -->
+        <div class="error-banner absolute bottom-6 left-6 right-6 flex items-center justify-between p-4 hidden" id="error-banner" role="alert" aria-live="assertive">
+          <div class="flex items-center gap-3">
+            <span class="error-icon font-bold" aria-hidden="true">⚠</span>
+            <span id="error-message" class="label-mono font-bold">Disconnected from engine.</span>
+          </div>
+          <button type="button" id="btn-close-error" class="btn-icon label-mono" aria-label="Close error">Close [X]</button>
+        </div>
+      </main>
+
+      <!-- RIGHT DETAIL DRAWER -->
+      <aside class="detail-drawer w-80 p-6 overflow-y-auto hidden" id="detail-drawer" role="dialog" aria-modal="false" aria-label="Node details">
+        <button class="btn-icon drawer-close mb-4 label-mono font-bold" id="drawer-close" aria-label="Close details panel">Close [X]</button>
+        <div class="drawer-content">
+          <p class="drawer-depth-badge label-mono inline-block px-2 py-1 bg-black text-white" id="drawer-depth">Depth 0</p>
+          <h2 class="drawer-title heading-black mt-4 text-xl" id="drawer-title">Page Title</h2>
+          <a class="drawer-url label-mono mt-2 block break-all text-blue-600 underline" id="drawer-url" href="#" target="_blank" rel="noopener noreferrer">url</a>
+          
+          <div class="drawer-divider my-6 border-b border-border-light"></div>
+          
+          <dl class="drawer-meta-grid">
+            <div class="meta-item mb-4">
+              <dt class="meta-label label-mono text-gray-500">Fetch Time</dt>
+              <dd class="meta-value font-mono font-bold" id="meta-fetch-time">—</dd>
+            </div>
+            <div class="meta-item mb-4">
+              <dt class="meta-label label-mono text-gray-500">Keyword Match</dt>
+              <dd class="meta-value font-mono font-bold" id="meta-keyword">—</dd>
+            </div>
+            <div class="meta-item mb-4">
+              <dt class="meta-label label-mono text-gray-500">Discovered At</dt>
+              <dd class="meta-value font-mono font-bold" id="meta-timestamp">—</dd>
+            </div>
+            <div class="meta-item meta-item--full mt-4 p-3 bg-gray-100 border border-gray-300">
+              <dt class="meta-label label-mono text-gray-500 mb-1">Parent Node</dt>
+              <dd class="meta-value meta-parent truncate font-mono text-sm" id="meta-parent">Root</dd>
+            </div>
+          </dl>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+  <!-- Using webcola for bouncy DAG layout -->
+  <script src="https://unpkg.com/webcola/WebCola/cola.min.js"></script>
+  <script src="https://unpkg.com/cytoscape-cola/cytoscape-cola.js"></script>
+  
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,243 @@
+/**
+ * StarBrief Engine Dashboard
+ * Design System: "Accessible Neo-Brutalist"
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=IBM+Plex+Mono:wght@500;700&display=swap");
+
+:root {
+  /* Typography */
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+  
+  --text-xs:   0.75rem;
+  --text-sm:   0.875rem;
+  --text-base: 1rem;
+  --text-lg:   1.25rem;
+  --text-xl:   1.5rem;
+  --text-2xl:  2rem;
+
+  --weight-regular: 400;
+  --weight-bold:    700;
+  --weight-black:   900;
+
+  /* Colors - Light Theme Default */
+  --bg-workspace: #f6f3ed;
+  --bg-card:      #ffffff;
+  
+  --text-light:       #111111; /* Pure black/ink */
+  --text-light-dim:   #555555; /* Strong dark grey */
+
+  --border-light: #cccccc;
+  --border-dark:  #111111;
+
+  --bg-accent:        #D90036; /* Deep Crimson */
+  --text-accent:      #D90036;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-workspace: #1a1918;
+    --bg-card:      #2b2826;
+    
+    --text-light:       #f6f3ed;
+    --text-light-dim:   #c4beb4;
+    
+    --border-light: #444444;
+    --border-dark:  #000000; 
+
+    --bg-accent:        #FF4D79;
+    --text-accent:      #FF4D79;
+  }
+}
+
+/* ─── Reset & Base ───────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--text-light);
+  background-color: var(--bg-workspace);
+  min-height: 100dvh;
+  overflow: hidden; /* App shell handles layout */
+}
+
+/* Typography Helpers */
+.heading-black {
+  font-weight: var(--weight-black);
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+  color: var(--text-light);
+}
+
+.label-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-light-dim);
+}
+
+/* Tailwind-ish Layout Utilities */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.justify-center { justify-content: center; }
+.gap-2 { gap: 0.5rem; }
+.gap-3 { gap: 0.75rem; }
+.gap-4 { gap: 1rem; }
+.gap-6 { gap: 1.5rem; }
+.w-full { width: 100%; }
+.w-1\/2 { width: 50%; }
+.w-80 { width: 20rem; }
+.h-full { height: 100%; }
+.flex-1 { flex: 1 1 0%; }
+.absolute { position: absolute; }
+.relative { position: relative; }
+.inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+.p-4 { padding: 1rem; }
+.p-6 { padding: 1.5rem; }
+.px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+.py-4 { padding-top: 1rem; padding-bottom: 1rem; }
+.pb-2 { padding-bottom: 0.5rem; }
+.mt-2 { margin-top: 0.5rem; }
+.mt-4 { margin-top: 1rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-4 { margin-bottom: 1rem; }
+.my-4 { margin-top: 1rem; margin-bottom: 1rem; }
+.my-6 { margin-top: 1.5rem; margin-bottom: 1.5rem; }
+.grid { display: grid; }
+.grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.overflow-hidden { overflow: hidden; }
+.overflow-y-auto { overflow-y: auto; }
+.border-b { border-bottom: 2px solid var(--border-dark); }
+.border-l { border-left: 2px solid var(--border-dark); }
+.border-r { border-right: 2px solid var(--border-dark); }
+.bg-workspace { background-color: var(--bg-workspace); }
+.bg-black { background-color: var(--text-light); }
+.text-white { color: var(--bg-workspace); }
+.text-lg { font-size: var(--text-lg); }
+.text-xl { font-size: var(--text-xl); }
+.text-2xl { font-size: var(--text-2xl); }
+.font-bold { font-weight: var(--weight-bold); }
+.font-mono { font-family: var(--font-mono); }
+.block { display: block; }
+.inline-block { display: inline-block; }
+.px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+.py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hidden { display: none !important; }
+
+/* Transitions */
+.fade-out { opacity: 0 !important; pointer-events: none; }
+.transition-opacity { transition: opacity 0.4s ease; }
+
+/* ─── Components ───────────────────────────────────────── */
+
+/* App Shell */
+.app-shell {
+  width: 100vw;
+  height: 100vh;
+}
+.app-header {
+  background: var(--bg-card);
+  border-bottom: 2px solid var(--border-dark);
+}
+
+/* Setup Overlay */
+.setup-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: var(--bg-workspace);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+  transition: opacity 0.4s ease;
+}
+.setup-card {
+  background: var(--bg-card);
+  border: 2px solid var(--border-dark);
+  box-shadow: 8px 8px 0px var(--border-dark);
+  padding: 2.5rem; width: 100%; max-width: 500px;
+}
+.setup-header { margin-bottom: 2rem; border-bottom: 2px solid var(--border-dark); padding-bottom: 1rem; }
+
+/* Forms */
+.form-group { margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; }
+input[type="url"], input[type="text"], input[type="number"] {
+  width: 100%;
+  background: var(--bg-workspace);
+  border: 2px solid var(--border-dark);
+  padding: 0.75rem 1rem;
+  font-family: var(--font-mono); font-size: var(--text-sm);
+  color: var(--text-light); outline: none;
+}
+input:focus { outline: 2px solid var(--bg-accent); outline-offset: 2px; }
+input.error { border-color: var(--bg-accent); background: rgba(217,0,54,0.05); }
+.form-hint { font-size: var(--text-xs); color: var(--text-light-dim); font-family: var(--font-mono); }
+.form-error { color: var(--bg-accent); font-family: var(--font-mono); font-size: var(--text-sm); font-weight: bold; }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.75rem 1.5rem;
+  font-family: var(--font-mono); font-weight: var(--weight-bold); text-transform: uppercase;
+  border: 2px solid var(--border-dark);
+  cursor: pointer; transition: transform 0.1s;
+}
+.btn:active { transform: translate(4px, 4px); box-shadow: none; }
+.btn-primary {
+  background: var(--bg-accent); color: white;
+  box-shadow: 4px 4px 0px var(--border-dark);
+}
+.btn-primary:hover { background: var(--border-dark); }
+.btn-secondary {
+  background: var(--bg-card); color: var(--text-light);
+  box-shadow: 4px 4px 0px var(--border-dark);
+}
+.btn-secondary:hover { background: var(--bg-workspace); }
+.btn-icon { background: none; border: none; cursor: pointer; color: var(--text-light); }
+.btn-icon:hover { color: var(--bg-accent); }
+
+/* Status Dot */
+.status-indicator {
+  padding: 0.5rem 1rem; border: 2px solid var(--border-dark);
+  background: var(--bg-card);
+}
+.status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: gray; }
+.status-dot.crawling { background: #00cc66; animation: pulse 1.5s infinite; }
+.status-dot.finished { background: #3399ff; }
+.status-dot.error { background: var(--bg-accent); }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(0, 204, 102, 0.7); } 70% { box-shadow: 0 0 0 8px rgba(0, 204, 102, 0); } 100% { box-shadow: 0 0 0 0 rgba(0, 204, 102, 0); } }
+
+/* Sidebar Stats & Domains */
+.sidebar { border-right: 2px solid var(--border-dark); background: var(--bg-card); width: 300px; }
+.stat-card {
+  padding: 1rem;
+  border: 2px solid var(--border-dark);
+  background: var(--bg-workspace);
+}
+.domain-list { list-style: none; padding: 0; }
+.domain-list li {
+  padding: 0.5rem 0;
+  border-bottom: 1px dashed var(--border-light);
+  font-family: var(--font-mono); font-size: var(--text-sm);
+  display: flex; justify-content: space-between;
+}
+
+/* Error Banner Overlay */
+.error-banner {
+  background: var(--bg-card);
+  border: 2px solid var(--border-dark);
+  box-shadow: 6px 6px 0px var(--bg-accent);
+  border-left: 6px solid var(--bg-accent);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* Detail Drawer */
+.detail-drawer { border-left: 2px solid var(--border-dark); background: var(--bg-card); }
+.drawer-content { display: flex; flex-direction: column; }
+.meta-item--full { border-top: 2px solid var(--border-dark); }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }

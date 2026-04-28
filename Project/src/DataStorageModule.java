@@ -19,14 +19,25 @@ public class DataStorageModule {
     public static class CrawlResult {
         public final String url;
         public final String title;
+        /** The URL that discovered this page. Null for the seed (root) node. */
+        public final String parentUrl;
         public final int depth;
         public final long fetchTimeMs;
         public final boolean keywordMatch;
         public final long timestamp;
 
-        public CrawlResult(String url, String title, int depth, long fetchTimeMs, boolean keywordMatch) {
+        /**
+         * @param url          the crawled page URL
+         * @param title        the page <title> tag content
+         * @param parentUrl    the URL that linked to this page; null for the seed
+         * @param depth        BFS depth at which this page was discovered
+         * @param fetchTimeMs  milliseconds taken to fetch the page
+         * @param keywordMatch true if the keyword was found in title or body
+         */
+        public CrawlResult(String url, String title, String parentUrl, int depth, long fetchTimeMs, boolean keywordMatch) {
             this.url = url;
             this.title = title;
+            this.parentUrl = parentUrl;
             this.depth = depth;
             this.fetchTimeMs = fetchTimeMs;
             this.keywordMatch = keywordMatch;
@@ -38,7 +49,7 @@ public class DataStorageModule {
     private static final String OUTPUT_DIR = "crawl_output";
 
     private final List<CrawlResult> results;
-    private final String sessionId;
+    private String sessionId;
     private int lastFlushedIndex;
     private boolean flushed;
 
@@ -50,6 +61,18 @@ public class DataStorageModule {
         java.io.File dir = new java.io.File(OUTPUT_DIR);
         if (!dir.exists()) {
             dir.mkdirs();
+        }
+    }
+
+    /**
+     * Resets the storage for a new crawl session.
+     */
+    public void clear() {
+        synchronized (results) {
+            results.clear();
+            sessionId = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+            lastFlushedIndex = 0;
+            flushed = false;
         }
     }
 
@@ -89,12 +112,89 @@ public class DataStorageModule {
         flushed = true;
         exportCSV();
         exportJSON();
+        exportGraphJSON();
+    }
+
+    /**
+     * Produces a Cytoscape.js-compliant JSON string for the /api/graph endpoint.
+     * Thread-safe: synchronized on the results list to prevent
+     * ConcurrentModificationException if the crawler adds results while
+     * the HTTP server reads them.
+     *
+     * Output format:
+     *   {
+     *     "nodes": [ { "data": { "id": "url", "label": "title", "depth": 0, ... } } ],
+     *     "edges": [ { "data": { "id": "e0", "source": "parentUrl", "target": "url" } } ]
+     *   }
+     *
+     * @return JSON string safe for direct HTTP response
+     */
+    public String getGraphJson() {
+        synchronized (results) {
+            if (results.isEmpty()) {
+                return "{\"nodes\":[],\"edges\":[]}"; 
+            }
+
+            StringBuilder sb = new StringBuilder(results.size() * 150);
+            sb.append("{\n");
+            sb.append("  \"nodes\": [\n");
+
+            for (int i = 0; i < results.size(); i++) {
+                CrawlResult r = results.get(i);
+                sb.append("    {\"data\": {");
+                sb.append("\"id\": ").append(escapeJSON(r.url)).append(", ");
+                sb.append("\"label\": ").append(escapeJSON(r.title != null ? r.title : r.url)).append(", ");
+                sb.append("\"depth\": ").append(r.depth).append(", ");
+                sb.append("\"fetchTimeMs\": ").append(r.fetchTimeMs).append(", ");
+                sb.append("\"keywordMatch\": ").append(r.keywordMatch).append(", ");
+                sb.append("\"timestamp\": ").append(r.timestamp);
+                sb.append("}}");
+                if (i < results.size() - 1) sb.append(",");
+                sb.append("\n");
+            }
+
+            sb.append("  ],\n");
+            sb.append("  \"edges\": [\n");
+
+            int edgeId = 0;
+            boolean firstEdge = true;
+            for (CrawlResult r : results) {
+                // Only create an edge if this node has a known parent
+                if (r.parentUrl != null && !r.parentUrl.isBlank()) {
+                    if (!firstEdge) sb.append(",\n");
+                    sb.append("    {\"data\": {");
+                    sb.append("\"id\": \"e").append(edgeId++).append("\", ");
+                    sb.append("\"source\": ").append(escapeJSON(r.parentUrl)).append(", ");
+                    sb.append("\"target\": ").append(escapeJSON(r.url));
+                    sb.append("}}");
+                    firstEdge = false;
+                }
+            }
+
+            sb.append("\n  ]\n}");
+            return sb.toString();
+        }
+    }
+
+    /**
+     * Writes the Cytoscape-compliant graph JSON to disk at session end.
+     * This complements getGraphJson() which serves the live HTTP endpoint.
+     */
+    private void exportGraphJSON() {
+        String filename = OUTPUT_DIR + "/crawl_" + sessionId + "_graph.json";
+        try (PrintWriter writer = new PrintWriter(new FileWriter(filename, false))) {
+            writer.print(getGraphJson());
+            System.out.println("[EXPORT] Graph JSON saved: " + filename);
+        } catch (IOException e) {
+            System.err.println("[ERROR] Failed to write graph JSON: " + e.getMessage());
+        }
     }
 
     /**
      * Exports all results to a CSV file.
      */
     private void exportCSV() {
+
         String filename = OUTPUT_DIR + "/crawl_" + sessionId + ".csv";
         try (PrintWriter writer = new PrintWriter(new FileWriter(filename, false))) {
             writer.println("URL,Title,Depth,FetchTime_ms,KeywordMatch,Timestamp");

@@ -21,7 +21,9 @@ import java.net.URISyntaxException;
  */
 public class URLManager {
 
-    private final Queue<String> frontier;
+    // Changed from Queue<String> to Queue<FrontierEdge> to capture graph topology.
+    // Each edge in this queue represents a directed link: parent -> target.
+    private final Queue<FrontierEdge> frontier;
     private final Set<String> visitedUrls;
     private final BloomFilterLayer bloomFilter;
 
@@ -61,7 +63,8 @@ public class URLManager {
         this.seedDomain = extractDomain(normalized);
         visitedUrls.add(normalized);
         bloomFilter.insert(normalized);
-        frontier.offer(normalized);
+        // Seed node: parentUrl is null (it IS the graph root, no incoming edge)
+        frontier.offer(new FrontierEdge(null, normalized, 0));
         totalEnqueued++;
     }
 
@@ -75,15 +78,29 @@ public class URLManager {
      *   6. Total enqueued has not exceeded maxPages
      *   7. Not a junk URL (images, stylesheets, login pages, etc.)
      */
-    public boolean addIfNotVisited(String url) {
+    /**
+     * Adds a URL to the frontier if it passes all filters.
+     *
+     * @param parentUrl the URL that discovered this link (for graph edge tracking)
+     * @param url       the discovered URL to potentially enqueue
+     * @param depth     the BFS depth at which this URL was discovered
+     * @return true if the URL was accepted and enqueued; false otherwise
+     */
+    public boolean addIfNotVisited(String parentUrl, String url, int depth) {
         String normalized = normalizeUrl(url);
         if (normalized == null || normalized.isBlank()) {
             return false;
         }
 
-        // Domain scoping: only crawl pages on the same host
+        // Domain scoping: only crawl pages on the same host or subdomains
         String urlDomain = extractDomain(normalized);
-        if (seedDomain != null && !seedDomain.equals(urlDomain)) {
+        if (seedDomain != null && urlDomain != null) {
+            if (!seedDomain.equals(urlDomain) 
+                && !urlDomain.endsWith("." + seedDomain)
+                && !seedDomain.endsWith("." + urlDomain)) {
+                return false;
+            }
+        } else if (seedDomain != null) {
             return false;
         }
 
@@ -92,10 +109,7 @@ public class URLManager {
             return false;
         }
 
-        // Safety caps
-        if (totalEnqueued >= maxPages) {
-            return false;
-        }
+
         if (frontier.size() >= maxFrontierSize) {
             return false;
         }
@@ -109,13 +123,18 @@ public class URLManager {
 
         visitedUrls.add(normalized);
         bloomFilter.insert(normalized);
-        frontier.offer(normalized);
+        // Store the parent->target edge so the graph visualizer can draw directed edges
+        frontier.offer(new FrontierEdge(parentUrl, normalized, depth));
         totalEnqueued++;
         return true;
     }
 
-    /** Dequeues the next URL from the frontier. */
-    public String getNextUrl() {
+    /**
+     * Dequeues the next frontier edge from the BFS queue.
+     * Returns null if the frontier is empty.
+     * The caller uses edge.targetUrl for fetching and edge.parentUrl for graph topology.
+     */
+    public FrontierEdge getNextEdge() {
         return frontier.poll();
     }
 
@@ -253,10 +272,14 @@ public class URLManager {
         }
     }
 
-    /** Extracts the host (domain) from a URL string. */
+    /** Extracts the host (domain) from a URL string, stripping www. prefix. */
     private static String extractDomain(String url) {
         try {
-            return new URI(url).getHost();
+            String host = new URI(url).getHost();
+            if (host != null && host.startsWith("www.")) {
+                return host.substring(4);
+            }
+            return host;
         } catch (Exception e) {
             return null;
         }

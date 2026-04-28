@@ -58,17 +58,28 @@ public class CrawlEngine {
         System.out.println("[INFO]   Depth 0 has " + pagesInCurrentLevel + " seed URL(s)");
         System.out.println();
 
-        while (urlManager.hasPendingUrls() && currentDepth <= maxDepth && !abortFlag) {
+        while (urlManager.hasPendingUrls() && !abortFlag) {
             // Page cap check
             if (pagesCrawled >= maxPages) {
                 System.out.println("\n[INFO] Page limit reached (" + maxPages + "). Stopping.");
                 break;
             }
 
-            String currentUrl = urlManager.getNextUrl();
-            if (currentUrl == null) {
+            // Dequeue the next edge from the BFS frontier.
+            // edge.targetUrl is the page to fetch; edge.parentUrl is its discoverer.
+            FrontierEdge edge = urlManager.getNextEdge();
+            if (edge == null) {
                 break;
             }
+            
+            // Check if this edge is beyond maxDepth
+            if (edge.depth > maxDepth) {
+                break; // We've reached beyond the requested depth limit
+            }
+            
+            String currentUrl = edge.targetUrl;
+            String parentUrl  = edge.parentUrl;   // null for the seed node
+            currentDepth = edge.depth;
 
             // Politeness delay
             if (pagesCrawled > 0) {
@@ -97,17 +108,18 @@ public class CrawlEngine {
                 }
 
                 DataStorageModule.CrawlResult result = new DataStorageModule.CrawlResult(
-                    currentUrl, title, currentDepth, fetchTimeMs, keywordMatch
+                    currentUrl, title, parentUrl, currentDepth, fetchTimeMs, keywordMatch
                 );
                 dataStore.addResult(result);
                 pagesCrawled++;
 
-                // Enqueue children for the next level
+                // Enqueue children, passing currentUrl as their parentUrl
+                // so DataStorageModule can record directed edges for the graph.
                 int acceptedLinks = 0;
+                // Only enqueue links if we haven't hit the max depth yet
                 if (currentDepth < maxDepth) {
                     for (String link : links) {
-                        if (urlManager.addIfNotVisited(link)) {
-                            pagesInNextLevel++;
+                        if (urlManager.addIfNotVisited(currentUrl, link, currentDepth + 1)) {
                             acceptedLinks++;
                         }
                     }
@@ -125,21 +137,6 @@ public class CrawlEngine {
                     pagesCrawled + 1, maxPages, currentDepth,
                     truncate(currentUrl, 55),
                     fetchTimeMs);
-            }
-
-            // Depth level transition
-            pagesInCurrentLevel--;
-            if (pagesInCurrentLevel <= 0) {
-                currentDepth++;
-                pagesInCurrentLevel = pagesInNextLevel;
-                pagesInNextLevel = 0;
-                if (currentDepth <= maxDepth && pagesInCurrentLevel > 0) {
-                    System.out.println();
-                    System.out.println("[INFO] Depth " + currentDepth
-                        + " — " + pagesInCurrentLevel + " pages queued"
-                        + " (frontier: " + urlManager.getFrontierSize()
-                        + ", visited: " + urlManager.getVisitedCount() + ")");
-                }
             }
         }
 
