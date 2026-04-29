@@ -205,25 +205,42 @@ input.error { border-color: var(--bg-accent); background: rgba(217,0,54,0.05); }
   background: var(--bg-card);
 }
 .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: gray; }
-.status-dot.crawling { background: #00cc66; animation: pulse 1.5s infinite; }
-.status-dot.finished { background: #3399ff; }
-.status-dot.error { background: var(--bg-accent); }
-@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(0, 204, 102, 0.7); } 70% { box-shadow: 0 0 0 8px rgba(0, 204, 102, 0); } 100% { box-shadow: 0 0 0 0 rgba(0, 204, 102, 0); } }
+.status-dot.crawling    { background: #00cc66; animation: pulse 1.5s infinite; }
+.status-dot.finished    { background: #3399ff; }
+.status-dot.error       { background: var(--bg-accent); }
+.status-dot.connecting  { background: #888888; animation: pulse-gray 2s infinite; }
+@keyframes pulse      { 0%   { box-shadow: 0 0 0 0 rgba(0,204,102,0.7); } 70%  { box-shadow: 0 0 0 8px rgba(0,204,102,0); }   100% { box-shadow: 0 0 0 0 rgba(0,204,102,0); } }
+@keyframes pulse-gray { 0%   { box-shadow: 0 0 0 0 rgba(128,128,128,0.6); } 70% { box-shadow: 0 0 0 6px rgba(128,128,128,0); } 100% { box-shadow: 0 0 0 0 rgba(128,128,128,0); } }
 
 /* Sidebar Stats & Domains */
-.sidebar { border-right: 2px solid var(--border-dark); background: var(--bg-card); width: 300px; }
+.sidebar { border-right: 2px solid var(--border-dark); background: var(--bg-card); width: 300px; flex-shrink: 0; min-width: 260px; }
 .stat-card {
   padding: 1rem;
   border: 2px solid var(--border-dark);
   background: var(--bg-workspace);
 }
+.stat-card--wide { grid-column: span 2; }
+.stat-fraction { display: flex; align-items: baseline; gap: 0.4rem; margin-top: 0.25rem; }
+.stat-value { font-size: 1.6rem; line-height: 1; }
+.stat-sep { font-family: var(--font-mono); color: var(--text-light-dim); }
+.stat-max { font-family: var(--font-mono); font-size: var(--text-sm); font-weight: var(--weight-bold); color: var(--text-light); }
+.stat-throughput { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-accent); }
 .domain-list { list-style: none; padding: 0; }
-.domain-list li {
-  padding: 0.5rem 0;
+.domain-list li,
+.domain-item {
+  padding: 0.4rem 0.5rem;
   border-bottom: 1px dashed var(--border-light);
   font-family: var(--font-mono); font-size: var(--text-sm);
-  display: flex; justify-content: space-between;
+  display: flex; justify-content: space-between; align-items: center;
+  cursor: pointer;
+  transition: background 0.15s;
 }
+.domain-item:hover    { background: rgba(0,0,0,0.06); }
+.domain-item.active   { background: var(--border-dark); color: var(--bg-card); }
+.domain-item.active span { color: var(--bg-card); }
+.domain-item--empty   { cursor: default; }
+.domain-item--empty:hover { background: none; }
+.sidebar-divider      { border-bottom: 2px solid var(--border-dark); }
 
 /* Error Banner Overlay */
 .error-banner {
@@ -237,7 +254,96 @@ input.error { border-color: var(--bg-accent); background: rgba(217,0,54,0.05); }
 /* Detail Drawer */
 .detail-drawer { border-left: 2px solid var(--border-dark); background: var(--bg-card); }
 .drawer-content { display: flex; flex-direction: column; }
-.meta-item--full { border-top: 2px solid var(--border-dark); }
+.drawer-url {
+  color: var(--text-accent);
+  text-decoration: underline;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+.drawer-url:hover { opacity: 0.75; }
+.meta-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  color: var(--text-light-dim);
+}
+.meta-value { font-family: var(--font-mono); font-weight: var(--weight-bold); margin-top: 0.2rem; }
+.meta-item--full {
+  border-top: 2px solid var(--border-dark);
+  padding: 0.75rem;
+  background: var(--bg-workspace);
+  border: 1px solid var(--border-light);
+  margin-top: 1rem;
+}
+
+.graph-container { background: #07070f; }
+.graph-loading {
+  background: rgba(7,7,15,0.82);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.graph-loading p { color: rgba(220,225,255,0.85); }
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+
+/* F-06 Tooltip */
+.cy-tooltip {
+  position: fixed;
+  z-index: 1000;
+  background: var(--border-dark);
+  color: var(--bg-card);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: 0.2rem 0.5rem;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* F-12 Modal Overlay */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(7,7,15,0.85);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-overlay.hidden { display: none !important; }
+.modal-card {
+  background: var(--bg-card);
+  border: 2px solid var(--border-dark);
+  width: 90%; max-width: 800px;
+  height: 80vh; max-height: 800px;
+  padding: 2rem;
+  display: flex; flex-direction: column;
+}
+.modal-url {
+  color: var(--text-accent); word-break: break-all; margin-bottom: 1rem;
+}
+.modal-body {
+  flex: 1;
+  background: var(--bg-workspace);
+  border: 2px solid var(--border-dark);
+  padding: 1rem;
+  overflow-y: auto;
+  font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-light);
+  white-space: pre-wrap; word-break: break-word;
+}
+
+/* ─── Bug #6 Fix: :empty fallback — JS sets value to "" and CSS handles display ── */
+/* Any .meta-value or .stat-value left blank by JS will auto-show placeholder text  */
+.meta-value:empty::before {
+  content: 'N/A';
+  color: var(--text-light-dim);
+  font-style: italic;
+}
+
+.stat-value:empty::before {
+  content: '0';
+  color: var(--text-light-dim);
+}
+
+/* Domain list empty state */
+#domain-list:not(:has(.domain-item)) #domain-empty {
+  display: list-item;
+}

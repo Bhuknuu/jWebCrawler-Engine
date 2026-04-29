@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>jWebCrawler — StarBrief Engine</title>
+  <title>jWebCrawler | StarBrief Engine</title>
   <meta name="description" content="Real-time force-directed graph visualization of the jWebCrawler BFS traversal engine." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23D90036'/><text y='.9em' font-size='90' x='5'>⬡</text></svg>" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -42,10 +43,17 @@
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="keyword" class="label-mono">Keyword (optional)</label>
-          <input type="text" id="keyword" name="keyword" placeholder="e.g. machine learning">
-          <span class="form-hint">Highlight pages containing this term.</span>
+        <div class="form-row flex gap-4">
+          <div class="form-group w-1/2">
+            <label for="max-breadth" class="label-mono">Max Breadth</label>
+            <input type="number" id="max-breadth" name="maxBreadth" min="1" max="500" value="25" required>
+            <span class="form-hint">Links per page (1–500).</span>
+          </div>
+          <div class="form-group w-1/2">
+            <label for="keyword" class="label-mono">Keyword (optional)</label>
+            <input type="text" id="keyword" name="keyword" placeholder="e.g. machine learning">
+            <span class="form-hint">Highlight matching pages.</span>
+          </div>
         </div>
 
         <div class="form-actions mt-4">
@@ -64,7 +72,7 @@
     <!-- TOP HEADER -->
     <header class="app-header flex justify-between items-center px-6 py-4">
       <div class="brand flex items-center gap-2">
-        <span class="brand-icon" aria-hidden="true">■</span>
+        <span class="brand-icon" aria-hidden="true">◈</span>
         <div>
           <h1 class="heading-black m-0 leading-tight">Crawl Network</h1>
           <p class="label-mono m-0">Live Topology</p>
@@ -72,10 +80,6 @@
       </div>
       
       <div class="header-controls flex items-center gap-6">
-        <div class="status-indicator flex items-center gap-2">
-          <span class="status-dot" id="status-dot"></span>
-          <span id="status-text" class="label-mono font-bold">Connecting...</span>
-        </div>
         <button type="button" class="btn btn-secondary" id="btn-reset">Reset Engine</button>
       </div>
     </header>
@@ -83,23 +87,58 @@
     <div class="main-layout flex flex-1 overflow-hidden">
       <!-- LEFT SIDEBAR -->
       <aside class="sidebar flex-col p-6 overflow-y-auto">
-        <div class="stats-grid grid grid-cols-2 gap-4">
-          <div class="stat-card">
-            <span class="stat-key label-mono block">Nodes</span>
-            <span class="stat-value heading-black text-2xl" id="stat-nodes">0</span>
+        <div class="stats-grid gap-3">
+
+          <div class="stat-card stat-card--wide">
+            <span class="stat-key label-mono">Status</span>
+            <div class="stat-status-row flex items-center gap-2 mt-1">
+              <span class="status-dot" id="status-dot"></span>
+              <span id="status-text" class="label-mono font-bold">Connecting...</span>
+            </div>
           </div>
+
           <div class="stat-card">
-            <span class="stat-key label-mono block">Edges</span>
-            <span class="stat-value heading-black text-2xl" id="stat-edges">0</span>
+            <span class="stat-key label-mono">Pages</span>
+            <div class="stat-fraction">
+              <span class="stat-value heading-black" id="stat-pages">0</span>
+              <span class="stat-sep">/</span>
+              <span class="stat-max" id="stat-pages-max">0</span>
+            </div>
           </div>
+
           <div class="stat-card">
-            <span class="stat-key label-mono block">Max Depth</span>
-            <span class="stat-value heading-black text-2xl" id="stat-depth">0</span>
+            <span class="stat-key label-mono">Depth Seen</span>
+            <div class="stat-fraction">
+              <span class="stat-value heading-black" id="stat-depth">0</span>
+              <span class="stat-sep">/</span>
+              <span class="stat-max" id="stat-depth-max">0</span>
+            </div>
           </div>
+
           <div class="stat-card">
-            <span class="stat-key label-mono block">Matches</span>
-            <span class="stat-value heading-black text-2xl" id="stat-matches">0</span>
+            <span class="stat-key label-mono">Breadth</span>
+            <div class="stat-fraction">
+              <span class="stat-value heading-black" id="stat-edges">0</span>
+              <span class="stat-sep">edges</span>
+            </div>
           </div>
+
+          <div class="stat-card">
+            <span class="stat-key label-mono">Matches</span>
+            <div class="stat-fraction">
+              <span class="stat-value heading-black" id="stat-matches">0</span>
+            </div>
+          </div>
+
+          <div class="stat-card stat-card--wide">
+            <span class="stat-key label-mono">Runtime</span>
+            <div class="stat-fraction">
+              <span class="stat-value font-mono" id="stat-timer">00:00</span>
+              <span class="stat-sep">&middot;</span>
+              <span class="stat-throughput" id="stat-throughput">0 p/s</span>
+            </div>
+          </div>
+
         </div>
 
         <div class="sidebar-divider my-6"></div>
@@ -117,7 +156,7 @@
         <div id="cy" class="absolute inset-0" role="application" aria-label="Interactive graph visualization of the crawled network"></div>
         
         <div class="graph-loading absolute inset-0 flex items-center justify-center bg-workspace/80 backdrop-blur" id="graph-loading">
-          <p class="label-mono font-bold text-lg">Crawling — first nodes arriving soon&hellip;</p>
+          <p class="label-mono font-bold text-lg">Crawling. First nodes arriving soon&hellip;</p>
         </div>
 
         <!-- Error Banner overlaying graph -->
@@ -126,48 +165,61 @@
             <span class="error-icon font-bold" aria-hidden="true">⚠</span>
             <span id="error-message" class="label-mono font-bold">Disconnected from engine.</span>
           </div>
-          <button type="button" id="btn-close-error" class="btn-icon label-mono" aria-label="Close error">Close [X]</button>
+          <button type="button" id="btn-close-error" class="btn-icon label-mono" aria-label="Close error">&#215;</button>
         </div>
       </main>
 
       <!-- RIGHT DETAIL DRAWER -->
       <aside class="detail-drawer w-80 p-6 overflow-y-auto hidden" id="detail-drawer" role="dialog" aria-modal="false" aria-label="Node details">
-        <button class="btn-icon drawer-close mb-4 label-mono font-bold" id="drawer-close" aria-label="Close details panel">Close [X]</button>
+        <button class="btn-icon drawer-close mb-4 label-mono font-bold" id="drawer-close" aria-label="Close details panel">&#215;</button>
         <div class="drawer-content">
           <p class="drawer-depth-badge label-mono inline-block px-2 py-1 bg-black text-white" id="drawer-depth">Depth 0</p>
           <h2 class="drawer-title heading-black mt-4 text-xl" id="drawer-title">Page Title</h2>
-          <a class="drawer-url label-mono mt-2 block break-all text-blue-600 underline" id="drawer-url" href="#" target="_blank" rel="noopener noreferrer">url</a>
+          <a class="drawer-url label-mono mt-2 block" id="drawer-url" href="#" target="_blank" rel="noopener noreferrer">url</a>
           
           <div class="drawer-divider my-6 border-b border-border-light"></div>
-          
-          <dl class="drawer-meta-grid">
+
             <div class="meta-item mb-4">
-              <dt class="meta-label label-mono text-gray-500">Fetch Time</dt>
-              <dd class="meta-value font-mono font-bold" id="meta-fetch-time">—</dd>
-            </div>
-            <div class="meta-item mb-4">
-              <dt class="meta-label label-mono text-gray-500">Keyword Match</dt>
-              <dd class="meta-value font-mono font-bold" id="meta-keyword">—</dd>
+              <dt class="meta-label">Fetch Time</dt>
+              <dd class="meta-value" id="meta-fetch-time">N/A</dd>
             </div>
             <div class="meta-item mb-4">
-              <dt class="meta-label label-mono text-gray-500">Discovered At</dt>
-              <dd class="meta-value font-mono font-bold" id="meta-timestamp">—</dd>
+              <dt class="meta-label">Keyword Match</dt>
+              <dd class="meta-value" id="meta-keyword">N/A</dd>
             </div>
-            <div class="meta-item meta-item--full mt-4 p-3 bg-gray-100 border border-gray-300">
-              <dt class="meta-label label-mono text-gray-500 mb-1">Parent Node</dt>
-              <dd class="meta-value meta-parent truncate font-mono text-sm" id="meta-parent">Root</dd>
+            <div class="meta-item mb-4">
+              <dt class="meta-label">Discovered At</dt>
+              <dd class="meta-value" id="meta-timestamp">N/A</dd>
             </div>
-          </dl>
+            <div class="meta-item meta-item--full">
+              <dt class="meta-label">Parent Node</dt>
+              <dd class="meta-value meta-parent truncate" id="meta-parent">Root</dd>
+            </div>
+
+          <div class="mt-6">
+            <button type="button" class="btn btn-secondary w-full" id="btn-view-data">View Captured Data</button>
+          </div>
         </div>
       </aside>
     </div>
   </div>
 
+  <!-- F-06: Hover tooltip (follows cursor, shows page title) -->
+  <div id="cy-tooltip" class="cy-tooltip hidden" role="tooltip" aria-live="polite"></div>
+
+  <!-- F-12: Page data modal -->
+  <div class="modal-overlay hidden" id="data-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-card">
+      <div class="modal-header flex items-center justify-between mb-4">
+        <h2 class="label-mono font-bold" id="modal-title">Captured Page Data</h2>
+        <button type="button" class="btn-icon font-bold" id="btn-modal-close" aria-label="Close">&#215;</button>
+      </div>
+      <div class="modal-url label-mono mb-4" id="modal-url-display"></div>
+      <pre class="modal-body" id="modal-text-content">Loading...</pre>
+    </div>
+  </div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
-  <!-- Using webcola for bouncy DAG layout -->
-  <script src="https://unpkg.com/webcola/WebCola/cola.min.js"></script>
-  <script src="https://unpkg.com/cytoscape-cola/cytoscape-cola.js"></script>
-  
   <script src="app.js"></script>
 </body>
 </html>

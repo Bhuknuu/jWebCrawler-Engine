@@ -1,6 +1,6 @@
 import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
@@ -9,16 +9,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Parses robots.txt files and enforces crawl rules per domain.
- * Caches parsed rules so each domain's robots.txt is fetched only once.
- * Enforces crawl-delay for polite crawling.
- */
 public class RobotsTxtModule {
 
-    /**
-     * Holds the parsed rules for one domain's robots.txt.
-     */
     private static class RobotRules {
         final List<String> disallowPaths;
         final List<String> allowPaths;
@@ -44,15 +36,9 @@ public class RobotsTxtModule {
         this.domainRulesCache = new HashMap<>();
     }
 
-    /**
-     * Checks whether crawling this URL is allowed by robots.txt.
-     * Fetches and caches the domain's robots.txt if not already cached.
-     */
     public boolean isAllowed(String urlString) {
         String domain = extractDomain(urlString);
-        if (domain == null) {
-            return true;
-        }
+        if (domain == null) return true;
 
         if (!domainRulesCache.containsKey(domain)) {
             RobotRules rules = fetchAndParse(domain, urlString);
@@ -62,78 +48,40 @@ public class RobotsTxtModule {
         RobotRules rules = domainRulesCache.get(domain);
         String path = extractPath(urlString);
 
-        // Allow rules take precedence (longer match wins)
         for (String allowPath : rules.allowPaths) {
-            if (path.startsWith(allowPath)) {
-                return true;
-            }
+            if (path.startsWith(allowPath)) return true;
         }
 
         for (String disallowPath : rules.disallowPaths) {
-            if (path.startsWith(disallowPath)) {
-                return false;
-            }
+            if (path.startsWith(disallowPath)) return false;
         }
 
         return true;
     }
 
-    /**
-     * Returns the crawl delay in seconds for a given domain.
-     * Defaults to 1 second if no Crawl-delay directive is found.
-     */
-    public int getCrawlDelay(String domain) {
-        RobotRules rules = domainRulesCache.get(domain);
-        if (rules == null) {
-            return 1;
-        }
-        return rules.crawlDelaySeconds;
-    }
-
-    /**
-     * Enforces the crawl delay for a domain.
-     * Sleeps if the last request to this domain was too recent.
-     */
-    public void enforcePoliteness(String urlString) {
+    // FIX 4: Asynchronous politeness checks. Skip unready URLs instead of sleeping.
+    public boolean isPoliteToVisit(String urlString) {
         String domain = extractDomain(urlString);
-        if (domain == null) {
-            return;
-        }
-
+        if (domain == null) return true;
         RobotRules rules = domainRulesCache.get(domain);
-        if (rules == null) {
-            return;
-        }
-
-        long now = System.currentTimeMillis();
-        long elapsed = now - rules.lastFetchTimestamp;
-        long requiredGap = rules.crawlDelaySeconds * 1000L;
-
-        if (elapsed < requiredGap && rules.lastFetchTimestamp > 0) {
-            try {
-                long sleepMs = requiredGap - elapsed;
-                Thread.sleep(sleepMs);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-
-        rules.lastFetchTimestamp = System.currentTimeMillis();
+        if (rules == null || rules.lastFetchTimestamp == 0) return true;
+        long required = rules.crawlDelaySeconds * 1000L;
+        return (System.currentTimeMillis() - rules.lastFetchTimestamp) >= required;
     }
 
-    /**
-     * Fetches and parses the robots.txt for a domain.
-     * Returns empty rules if the file is missing or unreachable.
-     */
+    public void recordVisit(String urlString) {
+        String domain = extractDomain(urlString);
+        if (domain == null) return;
+        RobotRules rules = domainRulesCache.get(domain);
+        if (rules != null) rules.lastFetchTimestamp = System.currentTimeMillis();
+    }
+
     private RobotRules fetchAndParse(String domain, String originalUrl) {
         String scheme = "http";
         try {
             URI uri = new URI(originalUrl);
-            if (uri.getScheme() != null) {
-                scheme = uri.getScheme().toLowerCase();
-            }
-        } catch (Exception ignored) {
-        }
+            if (uri.getScheme() != null) scheme = uri.getScheme().toLowerCase();
+        } catch (Exception ignored) {}
 
         String robotsUrl = scheme + "://" + domain + "/robots.txt";
 
@@ -151,10 +99,7 @@ public class RobotsTxtModule {
                 return RobotRules.empty();
             }
 
-            BufferedReader reader = new BufferedReader(
-                new InputStreamReader(connection.getInputStream())
-            );
-
+            BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
             List<String> disallowPaths = new ArrayList<>();
             List<String> allowPaths = new ArrayList<>();
             int crawlDelay = 1;
@@ -163,10 +108,7 @@ public class RobotsTxtModule {
             String line;
             while ((line = reader.readLine()) != null) {
                 line = line.strip();
-
-                if (line.isEmpty() || line.startsWith("#")) {
-                    continue;
-                }
+                if (line.isEmpty() || line.startsWith("#")) continue;
 
                 if (line.toLowerCase().startsWith("user-agent:")) {
                     String agent = line.substring(11).strip().toLowerCase();
@@ -174,48 +116,36 @@ public class RobotsTxtModule {
                     continue;
                 }
 
-                if (!inOurBlock) {
-                    continue;
-                }
+                if (!inOurBlock) continue;
 
                 if (line.toLowerCase().startsWith("disallow:")) {
                     String path = line.substring(9).strip();
-                    if (!path.isEmpty()) {
-                        disallowPaths.add(path);
-                    }
+                    if (!path.isEmpty()) disallowPaths.add(path);
                 } else if (line.toLowerCase().startsWith("allow:")) {
                     String path = line.substring(6).strip();
-                    if (!path.isEmpty()) {
-                        allowPaths.add(path);
-                    }
+                    if (!path.isEmpty()) allowPaths.add(path);
                 } else if (line.toLowerCase().startsWith("crawl-delay:")) {
                     String delayStr = line.substring(12).strip();
                     try {
-                        crawlDelay = Integer.parseInt(delayStr);
+                        crawlDelay = (int) Math.ceil(Double.parseDouble(delayStr)); // Supports fractional delays safely
                         if (crawlDelay < 0) crawlDelay = 1;
                         if (crawlDelay > 30) crawlDelay = 30;
-                    } catch (NumberFormatException ignored) {
-                    }
+                    } catch (NumberFormatException ignored) {}
                 }
             }
 
             reader.close();
             connection.disconnect();
-
             return new RobotRules(disallowPaths, allowPaths, crawlDelay);
 
-        } catch (IOException e) {
-            return RobotRules.empty();
-        }
+        } catch (IOException e) { return RobotRules.empty(); }
     }
 
     private static String extractDomain(String urlString) {
         try {
             URI uri = new URI(urlString);
             return uri.getHost();
-        } catch (Exception e) {
-            return null;
-        }
+        } catch (Exception e) { return null; }
     }
 
     private static String extractPath(String urlString) {
@@ -223,8 +153,6 @@ public class RobotsTxtModule {
             URI uri = new URI(urlString);
             String path = uri.getPath();
             return (path == null || path.isEmpty()) ? "/" : path;
-        } catch (Exception e) {
-            return "/";
-        }
+        } catch (Exception e) { return "/"; }
     }
 }

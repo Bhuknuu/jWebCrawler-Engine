@@ -44,7 +44,7 @@ public class Main {
         // ---------------------------------------------------------------
         DashboardServer[] serverHolder = new DashboardServer[1]; // array trick for lambda capture
 
-        DashboardServer.CrawlController crawlController = (seedUrl, maxDepth, keyword, maxPages) -> {
+        DashboardServer.CrawlController crawlController = (seedUrl, maxDepth, keyword, maxPages, maxBreadth) -> {
             Thread bfsThread = new Thread(() -> {
                 System.out.println("[BFS] Starting crawl: " + seedUrl);
                 try {
@@ -53,7 +53,7 @@ public class Main {
                     CrawlEngine          crawlEngine = new CrawlEngine(urlManager, fetcher, dataStore);
 
                     urlManager.addSeed(seedUrl);
-                    crawlEngine.startBFS(maxDepth, keyword);
+                    crawlEngine.startBFS(maxDepth, maxBreadth, keyword);
                     dataStore.flush();
 
                     if (serverHolder[0] != null) {
