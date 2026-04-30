@@ -1,8 +1,10 @@
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class URLManager {
 
@@ -20,8 +22,8 @@ public class URLManager {
 
     public URLManager(int maxPages, int maxFrontierSize) {
         this.scheduler       = new PriorityScheduler();
-        this.pendingParents  = new java.util.HashMap<>();
-        this.visitedUrls     = new HashSet<>();
+        this.pendingParents  = new ConcurrentHashMap<>();
+        this.visitedUrls     = Collections.synchronizedSet(new HashSet<>());
         this.bloomFilter     = new BloomFilterLayer(Math.max(maxPages, 10000));
         this.maxPages        = maxPages > 0 ? maxPages : 500;
         this.maxFrontierSize = maxFrontierSize > 0 ? maxFrontierSize : 5000;
@@ -36,7 +38,7 @@ public class URLManager {
         this.keyword = keyword != null ? keyword : "";
     }
 
-    public void addSeed(String seedUrl) {
+    public synchronized void addSeed(String seedUrl) {
         String normalized = normalizeUrl(seedUrl);
         if (normalized == null || normalized.isBlank()) {
             return;
@@ -46,11 +48,11 @@ public class URLManager {
         bloomFilter.insert(normalized);
         
         scheduler.scoreAndEnqueue(normalized, "", keyword, 0);
-        pendingParents.put(normalized, null);
+        pendingParents.put(normalized, "");
         totalEnqueued++;
     }
 
-    public boolean addIfNotVisited(String parentUrl, String url, String anchorText, int depth) {
+    public synchronized boolean addIfNotVisited(String parentUrl, String url, String anchorText, int depth) {
         String normalized = normalizeUrl(url);
         if (normalized == null || normalized.isBlank()) return false;
 
@@ -76,17 +78,17 @@ public class URLManager {
         return true;
     }
 
-    public FrontierEdge getNextEdge() {
+    public synchronized FrontierEdge getNextEdge() {
         PriorityScheduler.ScoredUrl top = scheduler.pollHighestPriority();
         if (top == null) return null;
         String parent = pendingParents.remove(top.url);
         return new FrontierEdge(parent, top.url, top.depth);
     }
 
-    // FIX 4: Re-queue logic that respects the PriorityScheduler architecture
-    public void requeueEdge(FrontierEdge edge) {
-        pendingParents.put(edge.targetUrl, edge.parentUrl);
-        scheduler.scoreAndEnqueue(edge.targetUrl, "", keyword, edge.depth);
+    public synchronized void requeueEdge(FrontierEdge edge) {
+        if (edge == null || edge.targetUrl == null) return;
+        // keep parent mapping intact so dispatch loop can look it up
+        pendingParents.putIfAbsent(edge.targetUrl, edge.parentUrl != null ? edge.parentUrl : "");
     }
 
     public boolean hasPendingUrls()  { return scheduler.hasPending(); }

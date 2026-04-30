@@ -1,12 +1,17 @@
-import java.io.FileWriter;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.security.MessageDigest;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class DataStorageModule {
 
@@ -30,61 +35,80 @@ public class DataStorageModule {
         }
     }
 
-    private static final int FLUSH_INTERVAL = 50;
     private static final String OUTPUT_DIR = "crawl_output";
+    private static final String TEXT_DIR = "crawl_output/texts";
 
     private final List<CrawlResult> results;
-    private final ConcurrentHashMap<String, String> pageTextCache;
     private String sessionId;
-    private int lastFlushedCsvIndex;
-    private int lastFlushedJsonIndex;
-    private boolean flushed;
 
     public DataStorageModule() {
-        this.results       = new ArrayList<>();
-        this.pageTextCache = new ConcurrentHashMap<>();
+        this.results = new ArrayList<>();
         this.sessionId = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-        this.lastFlushedCsvIndex = 0;
-        this.lastFlushedJsonIndex = 0;
-
-        java.io.File dir = new java.io.File(OUTPUT_DIR);
-        if (!dir.exists()) {
-            dir.mkdirs();
-        }
+        new File(OUTPUT_DIR).mkdirs();
+        new File(TEXT_DIR).mkdirs();
     }
 
     public void clear() {
         synchronized (results) {
             results.clear();
             sessionId = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            lastFlushedCsvIndex = 0;
-            lastFlushedJsonIndex = 0;
-            flushed = false;
         }
-        pageTextCache.clear();
+        // wipe text files from previous session
+        File textDir = new File(TEXT_DIR);
+        if (textDir.exists()) {
+            File[] files = textDir.listFiles();
+            if (files != null) {
+                for (File f : files) {
+                    if (!f.delete()) {
+                        System.err.println("[STORAGE] Could not delete: " + f.getName());
+                    }
+                }
+            }
+        }
     }
 
+    // write page text directly to disk as individual .txt files
     public void storePageText(String url, String text) {
         if (url == null || url.isBlank() || text == null) return;
-        if (text.length() > 65536) {
-            text = text.substring(0, 65536) + "\n[...truncated at 64 KB]";
+        try {
+            File dir = new File(TEXT_DIR);
+            if (!dir.exists()) dir.mkdirs();
+            String hash = sha256Hex(url).substring(0, 48);
+            File file = new File(dir, hash + ".txt");
+            try (PrintWriter pw = new PrintWriter(
+                    new OutputStreamWriter(new FileOutputStream(file, false), StandardCharsets.UTF_8))) {
+                pw.println("URL: " + url);
+                pw.println("---");
+                if (text.length() > 65536) {
+                    pw.print(text.substring(0, 65536));
+                    pw.println("\n[truncated at 64 KB]");
+                } else {
+                    pw.print(text);
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("[STORAGE] Failed to write text for: " + url + " - " + e.getMessage());
         }
-        pageTextCache.put(url, text);
     }
 
+    // read page text back from disk
     public String getPageText(String url) {
         if (url == null) return null;
-        return pageTextCache.get(url);
+        try {
+            String hash = sha256Hex(url).substring(0, 48);
+            File file = new File(TEXT_DIR, hash + ".txt");
+            if (!file.exists()) return null;
+            return new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            System.err.println("[STORAGE] Failed to read text for: " + url + " - " + e.getMessage());
+            return null;
+        }
     }
 
-    // FIX 2: Synchronize to prevent ConcurrentModificationException
+    // thread-safe result add
     public void addResult(CrawlResult result) {
         synchronized (results) {
             results.add(result);
-            if (results.size() % FLUSH_INTERVAL == 0) {
-                flushIncrementalCSV();
-                flushIncrementalJSON();
-            }
         }
     }
 
@@ -92,22 +116,61 @@ public class DataStorageModule {
         return Collections.unmodifiableList(results);
     }
 
-    // FIX 2: Thread-safe read
     public int getResultCount() {
         synchronized (results) {
             return results.size();
         }
     }
 
-    public void flush() {
-        if (flushed) return;
-        flushed = true;
-        exportCSV();
-        exportJSON();
-        exportGraphJSON();
+    // disk writes are immediate per-page, nothing to batch
+    public void flush() { }
+
+    // LLM corpus output in CommonCrawl/C4 JSONL schema
+    public void flushLLMCorpus() {
+        String filename = OUTPUT_DIR + "/corpus_" + sessionId + ".jsonl";
+        try (PrintWriter pw = new PrintWriter(
+                new OutputStreamWriter(new FileOutputStream(filename, false), StandardCharsets.UTF_8))) {
+            synchronized (results) {
+                for (CrawlResult r : results) {
+                    String bodyText = readBodyText(r.url);
+                    String domain = extractDomain(r.url);
+                    String json = "{"
+                        + "\"id\":" + escapeJSON(sha256Hex(r.url).substring(0, 16)) + ","
+                        + "\"url\":" + escapeJSON(r.url) + ","
+                        + "\"title\":" + escapeJSON(r.title) + ","
+                        + "\"text\":" + escapeJSON(bodyText) + ","
+                        + "\"crawl_depth\":" + r.depth + ","
+                        + "\"keyword_match\":" + r.keywordMatch + ","
+                        + "\"fetch_time_ms\":" + r.fetchTimeMs + ","
+                        + "\"timestamp_utc\":" + escapeJSON(Instant.ofEpochMilli(r.timestamp).toString()) + ","
+                        + "\"domain\":" + escapeJSON(domain) + ","
+                        + "\"parent_url\":" + escapeJSON(r.parentUrl) + ","
+                        + "\"char_count\":" + bodyText.length()
+                        + "}";
+                    pw.println(json);
+                }
+            }
+            System.out.println("[CORPUS] LLM JSONL written -> " + filename + " (" + results.size() + " records)");
+        } catch (IOException e) {
+            System.err.println("[CORPUS] Failed to write JSONL: " + e.getMessage());
+        }
     }
 
-    // FIX 3: Delta tracking JSON extraction to prevent network tab crashes
+    // read body text from disk, stripping the URL header we prepend
+    private String readBodyText(String url) {
+        String raw = getPageText(url);
+        if (raw == null) return "";
+        int marker = raw.indexOf("---\n");
+        if (marker >= 0) return raw.substring(marker + 4);
+        return raw;
+    }
+
+    private static String extractDomain(String url) {
+        try { return new java.net.URI(url).getHost(); }
+        catch (Exception e) { return ""; }
+    }
+
+    // delta graph JSON for live dashboard polling
     public String getGraphJsonDelta(int since) {
         synchronized (results) {
             int from = Math.max(0, Math.min(since, results.size()));
@@ -133,7 +196,7 @@ public class DataStorageModule {
             sb.append("],\"edges\":[");
 
             first = true;
-            int edgeId = since; 
+            int edgeId = since;
             for (int i = from; i < results.size(); i++) {
                 CrawlResult r = results.get(i);
                 if (r.parentUrl == null || r.parentUrl.isBlank()) continue;
@@ -155,92 +218,7 @@ public class DataStorageModule {
         return getGraphJsonDelta(0);
     }
 
-    private void exportGraphJSON() {
-        String filename = OUTPUT_DIR + "/crawl_" + sessionId + "_graph.json";
-        try (PrintWriter writer = new PrintWriter(new FileWriter(filename, false))) {
-            writer.print(getGraphJson());
-        } catch (IOException e) {}
-    }
-
-    private void exportCSV() {
-        String filename = OUTPUT_DIR + "/crawl_" + sessionId + ".csv";
-        try (PrintWriter writer = new PrintWriter(new FileWriter(filename, false))) {
-            writer.println("URL,Title,ParentURL,Depth,FetchTime_ms,KeywordMatch,Timestamp");
-            for (CrawlResult r : results) {
-                writer.println(escapeCSV(r.url) + "," + escapeCSV(r.title) + "," + escapeCSV(r.parentUrl) + "," + r.depth + "," + r.fetchTimeMs + "," + r.keywordMatch + "," + r.timestamp);
-            }
-        } catch (IOException e) {}
-    }
-
-    private void flushIncrementalCSV() {
-        String filename = OUTPUT_DIR + "/crawl_" + sessionId + "_partial.csv";
-        boolean isNewFile = (lastFlushedCsvIndex == 0);
-        try (PrintWriter writer = new PrintWriter(new FileWriter(filename, true))) {
-            if (isNewFile) writer.println("URL,Title,ParentURL,Depth,FetchTime_ms,KeywordMatch,Timestamp");
-            for (int i = lastFlushedCsvIndex; i < results.size(); i++) {
-                CrawlResult r = results.get(i);
-                writer.println(escapeCSV(r.url) + "," + escapeCSV(r.title) + "," + escapeCSV(r.parentUrl) + "," + r.depth + "," + r.fetchTimeMs + "," + r.keywordMatch + "," + r.timestamp);
-            }
-            lastFlushedCsvIndex = results.size();
-        } catch (IOException e) {}
-    }
-
-    private void flushIncrementalJSON() {
-        String filename = OUTPUT_DIR + "/crawl_" + sessionId + "_partial.json";
-        try (PrintWriter writer = new PrintWriter(new FileWriter(filename, true))) {
-            for (int i = lastFlushedJsonIndex; i < results.size(); i++) {
-                CrawlResult r = results.get(i);
-                writer.println("  {");
-                writer.println("    \"url\": " + escapeJSON(r.url) + ",");
-                writer.println("    \"title\": " + escapeJSON(r.title) + ",");
-                writer.println("    \"parentUrl\": " + escapeJSON(r.parentUrl) + ",");
-                writer.println("    \"depth\": " + r.depth + ",");
-                writer.println("    \"fetchTimeMs\": " + r.fetchTimeMs + ",");
-                writer.println("    \"keywordMatch\": " + r.keywordMatch + ",");
-                writer.println("    \"timestamp\": " + r.timestamp);
-                writer.println("  },");
-            }
-            lastFlushedJsonIndex = results.size();
-        } catch (IOException e) {}
-    }
-
-    private void exportJSON() {
-        String filename = OUTPUT_DIR + "/crawl_" + sessionId + ".json";
-        try (PrintWriter writer = new PrintWriter(new FileWriter(filename, false))) {
-            writer.println("{");
-            writer.println("  \"crawlSession\": {");
-            writer.println("    \"sessionId\": \"" + sessionId + "\",");
-            writer.println("    \"totalPages\": " + results.size() + ",");
-            writer.println("    \"exportedAt\": \"" + LocalDateTime.now() + "\"");
-            writer.println("  },");
-            writer.println("  \"results\": [");
-
-            for (int i = 0; i < results.size(); i++) {
-                CrawlResult r = results.get(i);
-                String comma = (i < results.size() - 1) ? "," : "";
-                writer.println("    {");
-                writer.println("      \"url\": " + escapeJSON(r.url) + ",");
-                writer.println("      \"title\": " + escapeJSON(r.title) + ",");
-                writer.println("      \"parentUrl\": " + escapeJSON(r.parentUrl) + ",");
-                writer.println("      \"depth\": " + r.depth + ",");
-                writer.println("      \"fetchTimeMs\": " + r.fetchTimeMs + ",");
-                writer.println("      \"keywordMatch\": " + r.keywordMatch + ",");
-                writer.println("      \"timestamp\": " + r.timestamp);
-                writer.println("    }" + comma);
-            }
-            writer.println("  ]\n}");
-        } catch (IOException e) {}
-    }
-
-    private static String escapeCSV(String value) {
-        if (value == null) return "";
-        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
-            return "\"" + value.replace("\"", "\"\"") + "\"";
-        }
-        return value;
-    }
-
-    private static String escapeJSON(String value) {
+    static String escapeJSON(String value) {
         if (value == null) return "null";
         String escaped = value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
         StringBuilder sb = new StringBuilder(escaped);
@@ -253,5 +231,17 @@ public class DataStorageModule {
             }
         }
         return "\"" + sb + "\"";
+    }
+
+    static String sha256Hex(String input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : digest) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (Exception e) {
+            return String.valueOf(Math.abs(input.hashCode()));
+        }
     }
 }

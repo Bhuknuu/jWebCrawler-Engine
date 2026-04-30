@@ -5,9 +5,9 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class RobotsTxtModule {
 
@@ -33,7 +33,7 @@ public class RobotsTxtModule {
     private final Map<String, RobotRules> domainRulesCache;
 
     public RobotsTxtModule() {
-        this.domainRulesCache = new HashMap<>();
+        this.domainRulesCache = new ConcurrentHashMap<>();
     }
 
     public boolean isAllowed(String urlString) {

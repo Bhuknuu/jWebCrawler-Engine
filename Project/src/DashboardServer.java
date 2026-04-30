@@ -28,7 +28,8 @@ public class DashboardServer {
     private volatile String      crawlError  = null;
 
     public interface CrawlController {
-        void startCrawl(String seedUrl, int maxDepth, String keyword, int maxPages, int maxBreadth);
+        void startCrawl(String seedUrl, int maxDepth, String keyword,
+                        int maxPages, int maxBreadth, boolean enableScraper);
     }
 
     public DashboardServer(DataStorageModule dataStore, Path dashboardDir, CrawlController crawlController) throws IOException {
@@ -63,6 +64,8 @@ public class DashboardServer {
         server.createContext("/api/start",  new StartCrawlHandler());
         server.createContext("/api/reset",  new ResetCrawlHandler());
         server.createContext("/api/page",   new PageDataHandler());
+        server.createContext("/api/pause",  new PauseHandler());
+        server.createContext("/api/resume", new ResumeHandler());
         server.createContext("/",           new StaticFileHandler());
     }
 
@@ -200,13 +203,36 @@ public class DashboardServer {
 
                 sendJson(ex, 202, "{\"status\":\"accepted\",\"message\":\"Crawl starting...\"}");
 
+                boolean enableScraper = !"false".equals(extractJsonString(body, "enableScraper"));
                 crawlStatus = CrawlStatus.RUNNING;
-                crawlController.startCrawl(seedUrl, maxDepth, keyword != null ? keyword : "", maxPages, maxBreadth);
+                crawlController.startCrawl(seedUrl, maxDepth, keyword != null ? keyword : "", maxPages, maxBreadth, enableScraper);
 
             } catch (Exception e) {
                 crawlStatus = CrawlStatus.ERROR;
                 sendJson(ex, 500, "{\"error\":\"Failed to start crawl: " + escapeForJson(e.getMessage()) + "\"}");
             }
+        }
+    }
+
+    private class PauseHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange ex) throws IOException {
+            if (!"POST".equalsIgnoreCase(ex.getRequestMethod())) {
+                sendError(ex, 405, "Method Not Allowed"); return;
+            }
+            if (activeEngine != null) activeEngine.pause();
+            sendJson(ex, 200, "{\"status\":\"paused\"}");
+        }
+    }
+
+    private class ResumeHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange ex) throws IOException {
+            if (!"POST".equalsIgnoreCase(ex.getRequestMethod())) {
+                sendError(ex, 405, "Method Not Allowed"); return;
+            }
+            if (activeEngine != null) activeEngine.resume();
+            sendJson(ex, 200, "{\"status\":\"running\"}");
         }
     }
 

@@ -46,20 +46,21 @@ public class PriorityScheduler {
     /**
      * Computes a relevance score for a URL based on four factors.
      */
-    public double computeScore(String url, String anchorText, String keyword) {
+    public double computeScore(String url, String anchorText, String keyword, int depth) {
         double score = 0.0;
 
-        // Factor 1: Keyword match (weight 5.0)
+        // Factor 1: Keyword match via word boundary regex
         if (keyword != null && !keyword.isBlank()) {
-            String lowerKeyword = keyword.toLowerCase();
-            if (anchorText != null && anchorText.toLowerCase().contains(lowerKeyword)) {
+            java.util.regex.Pattern kw = java.util.regex.Pattern.compile(
+                "\\b" + java.util.regex.Pattern.quote(keyword.toLowerCase()) + "\\b");
+            if (anchorText != null && kw.matcher(anchorText.toLowerCase()).find()) {
                 score += 5.0;
-            } else if (url.toLowerCase().contains(lowerKeyword)) {
+            } else if (kw.matcher(url.toLowerCase()).find()) {
                 score += 3.0;
             }
         }
 
-        // Factor 2: Domain authority (weight 2.0)
+        // Factor 2: Domain authority
         String domain = extractDomain(url);
         if (domain != null) {
             if (domain.endsWith(".edu") || domain.endsWith(".gov")) {
@@ -71,14 +72,18 @@ public class PriorityScheduler {
             }
         }
 
-        // Factor 3: Path depth (weight 1.0)
+        // Factor 3: Path depth
         int pathDepth = countPathSegments(url);
         score += 1.0 / (pathDepth + 1);
 
-        // Factor 4: Domain novelty (weight 1.5)
+        // Factor 4: Domain novelty
         if (domain != null && !seenDomains.contains(domain)) {
             score += 1.5;
         }
+
+        // Factor 5: Depth penalty to discourage deep, low-relevance pages
+        score -= (depth * depth) * 0.3;
+        if (score < 0) score = 0;
 
         return score;
     }
@@ -121,7 +126,7 @@ public class PriorityScheduler {
      * Convenience method: score, wrap, and enqueue in one call.
      */
     public void scoreAndEnqueue(String url, String anchorText, String keyword, int depth) {
-        double score = computeScore(url, anchorText, keyword);
+        double score = computeScore(url, anchorText, keyword, depth);
         offer(new ScoredUrl(url, score, depth, anchorText));
     }
 

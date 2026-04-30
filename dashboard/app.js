@@ -4,20 +4,24 @@ const API_GRAPH_URL   = '/api/graph';
 const API_STATUS_URL  = '/api/status';
 const API_START_URL   = '/api/start';
 const API_RESET_URL   = '/api/reset';
-const API_PAGE_URL    = '/api/page';    
+const API_PAGE_URL    = '/api/page';
 const POLL_INTERVAL   = 3000;
 const MAX_BACKOFF     = 30000;
-const STAGGER_MS      = 55;
-const LAYOUT_DEBOUNCE_MS = 800;  // FIX 8: Debounce layout runs
+const STAGGER_MS      = 40;
+const LAYOUT_DEBOUNCE_MS = 1200;
 
+// Depth palette — 8 levels, each a distinct vivid hue
+// Designed for dark canvas: high chroma, WCAG AA contrast against #07070f
+// Source: Tableau 10 + Material Design vibrant subset, adapted for graph viz
 const DEPTH_PALETTE = [
-  '#ffffff',                   
-  'rgba(200,220,255,0.85)',    
-  'rgba(160,185,255,0.78)',    
-  'rgba(130,150,240,0.72)',    
-  'rgba(180,100,210,0.72)',    
-  'rgba(220,70,130,0.78)',     
-  '#D90036',                   
+  '#FFD700',  // D0 — Seed: rich gold, unmissable root anchor
+  '#00B4FF',  // D1 — Electric sky-blue: first children pop cold against warm root
+  '#00E5C5',  // D2 — Cyan-mint: aqua family, clearly different from D1
+  '#39FF14',  // D3 — Electric lime-green: maximum contrast shift into green spectrum
+  '#FF8C00',  // D4 — Deep amber-orange: warm shift away from greens
+  '#FF2D78',  // D5 — Hot magenta-pink: aggressive hue rotation
+  '#BF5FFF',  // D6 — Electric violet: purple family, cool contrast to D5
+  '#FF4500',  // D7+ — Cinnabar red-orange: terminating nodes feel urgent
 ];
 
 const TOKENS = {
@@ -57,7 +61,10 @@ function initDOMRefs() {
   DOM.statDepthMax  = document.getElementById('stat-depth-max');
   DOM.statMatches   = document.getElementById('stat-matches');
   DOM.statTimer     = document.getElementById('stat-timer');       
-  DOM.statThroughput= document.getElementById('stat-throughput'); 
+  DOM.statThroughput = document.getElementById('stat-throughput');
+  DOM.statBreadthSeen = document.getElementById('stat-breadth-seen');
+  DOM.statBreadthMax  = document.getElementById('stat-breadth-max');
+  DOM.statMatchesCard = document.getElementById('stat-matches-card');
 
   DOM.domainList    = document.getElementById('domain-list');
 
@@ -93,19 +100,24 @@ function getInitialState() {
     domainMap:          new Map(),
     failCount:          0,
     pollTimer:          null,
-    timerInterval:      null,   
-    crawlStartTime:     null,   
-    maxDepth:           null,   
+    timerInterval:      null,
+    crawlStartTime:     null,
+    maxDepth:           null,
     maxPages:           null,
     maxBreadth:         null,
     maxDepthSeen:       0,
+    maxBreadthSeen:     0,
+    outDegree:          new Map(),
     matchCount:         0,
+    keyword:            '',
+    isPaused:           false,  // explicit flag — avoids fragile textContent checks
     cy:                 null,
     activeDomain:       null,
     crawlFinished:      false,
-    currentNodeUrl:     null,   
-    graphSinceIndex:    0,      // FIX 3: Graph Delta Tracking
-    viewDataAbort:      null,   // FIX 9: Event Listener Management
+    currentNodeUrl:     null,
+    graphSinceIndex:    0,
+    viewDataAbort:      null,
+    layoutRan:          false,
   };
 }
 
@@ -132,7 +144,8 @@ function initSetupForm() {
       const response = await fetch(API_START_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seedUrl, maxDepth, keyword, maxPages, maxBreadth }),
+        body: JSON.stringify({ seedUrl, maxDepth, keyword, maxPages, maxBreadth,
+          enableScraper: document.getElementById('enable-scraper')?.checked ?? true }),
       });
 
       let data = {};
@@ -142,8 +155,14 @@ function initSetupForm() {
         state.maxDepth   = maxDepth;
         state.maxPages   = maxPages;
         state.maxBreadth = maxBreadth;
-        if (DOM.statPagesMax)  DOM.statPagesMax.textContent  = maxPages;
-        if (DOM.statDepthMax)  DOM.statDepthMax.textContent  = maxDepth;
+        state.keyword    = keyword;
+        if (DOM.statPagesMax)    DOM.statPagesMax.textContent    = maxPages;
+        if (DOM.statDepthMax)    DOM.statDepthMax.textContent    = maxDepth;
+        if (DOM.statBreadthMax)  DOM.statBreadthMax.textContent  = maxBreadth;
+        // show Matches card only when a keyword was supplied
+        if (DOM.statMatchesCard) {
+          DOM.statMatchesCard.style.display = keyword ? '' : 'none';
+        }
         transitionToGraphView();
       } else {
         showFormError(data.error || 'Server error (HTTP ' + response.status + ')');
@@ -159,30 +178,97 @@ function initSetupForm() {
   
   DOM.btnReset.addEventListener('click', async () => {
     try { await fetch(API_RESET_URL, { method: 'POST' }); } catch (_) {}
-    if (state.cy)           state.cy.destroy();
-    if (state.pollTimer)    clearTimeout(state.pollTimer);
-    if (state.timerInterval) clearInterval(state.timerInterval); 
-    closeModal();
-    state = getInitialState();
-    DOM.app.style.display = 'none';
-    DOM.setupOverlay.classList.remove('hidden');
-    setButtonLoading(false);
-    
-    if (DOM.statPages)     DOM.statPages.textContent      = '';
-    if (DOM.statPagesMax)  DOM.statPagesMax.textContent   = '';
-    if (DOM.statEdges)     DOM.statEdges.textContent      = '';
-    if (DOM.statDepth)     DOM.statDepth.textContent      = '';
-    if (DOM.statDepthMax)  DOM.statDepthMax.textContent   = '';
-    if (DOM.statMatches)   DOM.statMatches.textContent    = '';
-    if (DOM.statTimer)     DOM.statTimer.textContent      = '';
-    if (DOM.statThroughput)DOM.statThroughput.textContent = '';
-    DOM.domainList.innerHTML = '<li class="domain-item--empty label-mono" id="domain-empty">Awaiting crawl data&hellip;</li>';
-    DOM.graphLoading.classList.remove('hidden');
-    hideErrorBanner();
-    closeDrawer();
+    resetToSetupScreen();
   });
-  
+
   DOM.btnCloseError.addEventListener('click', hideErrorBanner);
+
+  // ── Pause / Resume ────────────────────────────────────────────────────────
+  // Use an explicit boolean flag instead of reading textContent (fragile).
+  DOM.btnPause = document.getElementById('btn-pause');
+  DOM.btnStop  = document.getElementById('btn-stop');
+
+  if (DOM.btnPause) {
+    DOM.btnPause.addEventListener('click', async () => {
+      const currentlyPaused = state.isPaused;
+      const endpoint = currentlyPaused ? '/api/resume' : '/api/pause';
+      DOM.btnPause.disabled = true;
+      try {
+        const resp = await fetch(endpoint, { method: 'POST' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        state.isPaused = !currentlyPaused;
+        DOM.btnPause.textContent = state.isPaused ? 'Resume' : 'Pause';
+        setStatus(state.isPaused ? 'connecting' : 'crawling',
+                  state.isPaused ? 'Paused'     : 'Running');
+      } catch (e) {
+        showErrorBanner('Failed to ' + (currentlyPaused ? 'resume' : 'pause') + ': ' + e.message);
+      } finally {
+        DOM.btnPause.disabled = false;
+      }
+    });
+  }
+
+  // ── Stop ──────────────────────────────────────────────────────────────────
+  // Sends abort to engine, polls /api/status until IDLE, then cleans up UI.
+  if (DOM.btnStop) {
+    DOM.btnStop.addEventListener('click', async () => {
+      DOM.btnStop.disabled  = true;
+      DOM.btnPause.disabled = true;
+      setStatus('connecting', 'Stopping…');
+      try {
+        await fetch(API_RESET_URL, { method: 'POST' });
+      } catch (_) { /* engine may already be dead — that's fine */ }
+
+      let attempts = 0;
+      const pollStop = setInterval(async () => {
+        attempts++;
+        try {
+          const resp = await fetch(API_STATUS_URL, { cache: 'no-store' });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.status === 'idle' || data.status === 'finished' || attempts >= 10) {
+              clearInterval(pollStop);
+              resetToSetupScreen();
+            }
+          }
+        } catch (_) {
+          if (attempts >= 10) { clearInterval(pollStop); resetToSetupScreen(); }
+        }
+      }, 500);
+    });
+  }
+}
+
+// ── Shared cleanup: called by Stop button, Reset Engine button ─────────────
+function resetToSetupScreen() {
+  if (state.cy)            state.cy.destroy();
+  if (state.pollTimer)     clearTimeout(state.pollTimer);
+  if (state.timerInterval) clearInterval(state.timerInterval);
+  closeModal();
+  state = getInitialState();
+
+  DOM.app.style.display = 'none';
+  DOM.setupOverlay.classList.remove('hidden');
+  setButtonLoading(false);
+
+  // Reset header buttons to default state for next crawl
+  if (DOM.btnPause) { DOM.btnPause.textContent = 'Pause'; DOM.btnPause.disabled = false; }
+  if (DOM.btnStop)  { DOM.btnStop.disabled = false; }
+
+  if (DOM.statPages)       DOM.statPages.textContent       = '';
+  if (DOM.statPagesMax)    DOM.statPagesMax.textContent    = '';
+  if (DOM.statBreadthSeen) DOM.statBreadthSeen.textContent = '';
+  if (DOM.statBreadthMax)  DOM.statBreadthMax.textContent  = '';
+  if (DOM.statDepth)       DOM.statDepth.textContent       = '';
+  if (DOM.statDepthMax)    DOM.statDepthMax.textContent    = '';
+  if (DOM.statMatches)     DOM.statMatches.textContent     = '';
+  if (DOM.statMatchesCard) DOM.statMatchesCard.style.display = 'none';
+  if (DOM.statTimer)       DOM.statTimer.textContent       = '';
+  if (DOM.statThroughput)  DOM.statThroughput.textContent  = '';
+  DOM.domainList.innerHTML = '<li class="domain-item--empty label-mono" id="domain-empty">Awaiting crawl data&hellip;</li>';
+  DOM.graphLoading.classList.remove('hidden');
+  hideErrorBanner();
+  closeDrawer();
 }
 
 function showFormError(msg) { DOM.formError.textContent = msg; DOM.formError.removeAttribute('hidden'); }
@@ -264,8 +350,12 @@ function initTooltip() {
     const y = evt.originalEvent.clientY;
     if (_tooltipRafId) cancelAnimationFrame(_tooltipRafId);
     _tooltipRafId = requestAnimationFrame(() => {
-        DOM.tooltip.style.left = (x + 14) + 'px';
-        DOM.tooltip.style.top  = (y - 10) + 'px';
+        const tw = DOM.tooltip.offsetWidth  || 120;
+        const th = DOM.tooltip.offsetHeight || 24;
+        const lx = Math.min(x + 14, window.innerWidth  - tw - 10);
+        const ly = Math.max(y - 10, th + 4);
+        DOM.tooltip.style.left = lx + 'px';
+        DOM.tooltip.style.top  = ly + 'px';
         _tooltipRafId = null;
     });
   });
@@ -275,84 +365,118 @@ function initTooltip() {
 }
 
 function buildCytoscapeStyle() {
+  // helper: per-depth glow color (same as fill, used for shadow)
+  const depthColor = d => DEPTH_PALETTE[Math.min(d, DEPTH_PALETTE.length - 1)];
+  const depthSize  = d => d === 0 ? 22 : d === 1 ? 14 : d === 2 ? 10 : d === 3 ? 8 : 6;
+
   return [
     {
       selector: 'node',
       style: {
-        'background-color':  node => {
-          const d = node.data('depth') || 0;
-          return DEPTH_PALETTE[Math.min(d, DEPTH_PALETTE.length - 1)];
-        },
-        'background-opacity': 0.8,
-        'border-width':      0,
-        'width':  6, 'height': 6,
-        'label':  '',
+        'background-color': node => depthColor(node.data('depth') || 0),
+        'background-opacity': 1,
+        'border-width': node => (node.data('depth') || 0) === 0 ? 3 : 1.5,
+        'border-color': node => depthColor(node.data('depth') || 0),
+        'border-opacity': 0.6,
+        'width':  node => depthSize(node.data('depth') || 0),
+        'height': node => depthSize(node.data('depth') || 0),
+        // Cytoscape shadow = glow effect
+        'shadow-blur':    node => (node.data('depth') || 0) === 0 ? 24 : 14,
+        'shadow-color':   node => depthColor(node.data('depth') || 0),
+        'shadow-opacity': node => (node.data('depth') || 0) === 0 ? 0.9 : 0.65,
+        'shadow-offset-x': 0,
+        'shadow-offset-y': 0,
+        'label': '',
         'overlay-opacity': 0,
-        'transition-property': 'background-color, width, height, background-opacity',
+        'transition-property': 'background-color, width, height, border-color, shadow-opacity',
         'transition-duration': '0.25s',
       }
     },
-    {
-      selector: 'node[?keywordMatch]',
-      style: {
-        'background-color':  TOKENS.nodeMatch,
-        'background-opacity': 1,
-        'width': 9, 'height': 9,
-      }
-    },
-    {
-      selector: 'node:selected, node.highlighted',
-      style: {
-        'background-color':  TOKENS.nodeHighlight,
-        'background-opacity': 1,
-        'width': 10, 'height': 10,
-        'label': 'data(label)',
-        'font-family': 'IBM Plex Mono, monospace',
-        'font-size': 9,
-        'color': TOKENS.labelColor,
-        'text-valign': 'bottom', 'text-halign': 'center',
-        'text-margin-y': 4,
-        'text-background-color': TOKENS.bgBase,
-        'text-background-opacity': 0.7,
-        'text-background-padding': '2px',
-      }
-    },
-    { selector: 'node.dimmed',     style: { 'opacity': 0.08 } },
+    // Seed node (D0): gold, large, labelled
     {
       selector: 'node[depth = 0]',
       style: {
-        'width': 14, 'height': 14,
+        'width': 22, 'height': 22,
+        'border-width': 3,
+        'border-color': '#FFD700',
+        'border-opacity': 1,
+        'shadow-blur': 28,
+        'shadow-color': '#FFD700',
+        'shadow-opacity': 1,
+        'label': 'data(label)',
+        'font-family': 'IBM Plex Mono, monospace',
+        'font-size': 10,
+        'font-weight': 700,
+        'color': '#FFFFFF',
+        'text-valign': 'bottom', 'text-halign': 'center',
+        'text-margin-y': 6,
+        'text-background-color': 'rgba(5,5,14,0.85)',
+        'text-background-opacity': 1,
+        'text-background-padding': '4px',
+        'text-border-width': 0,
+      }
+    },
+    // Keyword match: white pulsing ring
+    {
+      selector: 'node[?keywordMatch]',
+      style: {
+        'background-color':   '#FF2D78',
+        'background-opacity': 1,
+        'border-width': 2.5,
+        'border-color': '#ffffff',
+        'border-opacity': 1,
+        'shadow-blur': 18,
+        'shadow-color': '#FF2D78',
+        'shadow-opacity': 0.9,
+        'width': 12, 'height': 12,
+      }
+    },
+    // Highlighted / selected: show full label with bright readable text
+    {
+      selector: 'node:selected, node.highlighted',
+      style: {
+        'background-opacity': 1,
+        'border-width': 2,
+        'border-color': '#ffffff',
+        'border-opacity': 1,
+        'shadow-blur': 22,
+        'shadow-opacity': 0.9,
+        'width': node => depthSize(node.data('depth') || 0) + 4,
+        'height': node => depthSize(node.data('depth') || 0) + 4,
         'label': 'data(label)',
         'font-family': 'IBM Plex Mono, monospace',
         'font-size': 9,
-        'color': TOKENS.labelColor,
+        'font-weight': 600,
+        'color': '#FFFFFF',                           // ← bright white, always readable
         'text-valign': 'bottom', 'text-halign': 'center',
-        'text-margin-y': 4,
-        'text-background-color': TOKENS.bgBase,
-        'text-background-opacity': 0.7,
-        'text-background-padding': '2px',
+        'text-margin-y': 5,
+        'text-background-color': 'rgba(5,5,14,0.9)', // ← near-black glass pill
+        'text-background-opacity': 1,
+        'text-background-padding': '3px',
       }
     },
+    { selector: 'node.dimmed', style: { 'opacity': 0.06, 'shadow-opacity': 0 } },
     {
       selector: 'edge',
       style: {
-        'width': 0.5,
-        'line-color': TOKENS.edgeColor,
-        'target-arrow-color': TOKENS.edgeColor,
-        'target-arrow-shape': 'none',
-        'curve-style': 'haystack',
-        'opacity': 1,
+        'width': node => 0.7,
+        'line-color': 'rgba(160, 170, 220, 0.18)',
+        'target-arrow-color': 'rgba(160, 170, 220, 0.35)',
+        'target-arrow-shape': 'triangle',
+        'arrow-scale': 0.65,
+        'curve-style': 'bezier',
+        'opacity': 0.7,
       }
     },
     {
       selector: 'edge.highlighted',
       style: {
-        'line-color': TOKENS.edgeHighlight,
-        'target-arrow-color': TOKENS.edgeHighlight,
-        'target-arrow-shape': 'triangle',
-        'arrow-scale': 0.5,
-        'width': 1,
-        'opacity': 0.7,
+        'line-color':          'rgba(255,255,255,0.55)',
+        'target-arrow-color':  'rgba(255,255,255,0.75)',
+        'target-arrow-shape':  'triangle',
+        'arrow-scale': 0.9,
+        'width': 1.4,
+        'opacity': 1,
       }
     },
     { selector: 'edge.dimmed', style: { 'opacity': 0.03 } },
@@ -453,6 +577,11 @@ function applyGraphData(data) {
     if (!state.knownNodeIds.has(edgeEl.data.source) || !state.knownNodeIds.has(edgeEl.data.target)) continue;
     state.knownEdgeIds.add(edgeEl.data.id);
     newEdges.push({ group: 'edges', data: edgeEl.data });
+    // track outgoing edges per source to compute maxBreadthSeen
+    const src = edgeEl.data.source;
+    const deg = (state.outDegree.get(src) || 0) + 1;
+    state.outDegree.set(src, deg);
+    if (deg > state.maxBreadthSeen) state.maxBreadthSeen = deg;
   }
 
   if (typeof data.nextSince === 'number') {
@@ -489,39 +618,52 @@ function applyGraphData(data) {
 
 function runLayout() {
   const cy = state.cy;
-  const extent = cy.extent();
-  const cx = (extent.x1 + extent.x2) / 2;
-  const cy_ = (extent.y1 + extent.y2) / 2;
+  const nodeCount = cy.nodes().length;
 
-  cy.nodes().filter(n => !n.position().x && !n.position().y).forEach(n => {
-    n.position({
-      x: cx + (Math.random() - 0.5) * 120,
-      y: cy_ + (Math.random() - 0.5) * 120,
-    });
-  });
+  // breadthfirst for ≤300 nodes: shows clear parent-child hierarchy, no overlap
+  // fall back to cose for very large graphs where breadthfirst becomes unwieldy
+  const layoutName = nodeCount <= 300 ? 'breadthfirst' : 'cose';
 
-  cy.layout({
-    name:             'cose',
-    animate:          true,
-    animationDuration:900,
-    randomize:        false,   
-    fit:              false,   
-    padding:          30,
-    nodeRepulsion:    () => 4500,
-    idealEdgeLength:  () => 60,
-    edgeElasticity:   () => 0.45,
-    gravity:          0.25,
-    numIter:          1800,    
-  }).run();
+  if (layoutName === 'breadthfirst') {
+    cy.layout({
+      name:          'breadthfirst',
+      animate:       true,
+      animationDuration: 700,
+      fit:           false,
+      padding:       60,
+      directed:      true,      // respect edge direction (parent → child)
+      spacingFactor: 1.75,      // horizontal spread between siblings
+      avoidOverlap:  true,
+      nodeDimensionsIncludeLabels: false,
+    }).run();
+  } else {
+    cy.layout({
+      name:          'cose',
+      animate:       true,
+      animationDuration: 900,
+      randomize:     !state.layoutRan,
+      fit:           false,
+      padding:       40,
+      nodeRepulsion: () => 18000,
+      idealEdgeLength: () => 120,
+      edgeElasticity: () => 0.30,
+      gravity:       0.15,
+      numIter:       3000,
+      componentSpacing: 100,
+      nodeDimensionsIncludeLabels: true,
+    }).run();
+  }
+
+  state.layoutRan = true;
 }
 
 function truncate(str, max) { return str && str.length > max ? str.substring(0, max - 3) + '...' : str || ''; }
 
 function updateStats() {
-  if (DOM.statPages)   DOM.statPages.textContent   = state.knownNodeIds.size;
-  if (DOM.statEdges)   DOM.statEdges.textContent   = state.knownEdgeIds.size;
-  if (DOM.statDepth)   DOM.statDepth.textContent   = state.maxDepthSeen;
-  if (DOM.statMatches) DOM.statMatches.textContent = state.matchCount;
+  if (DOM.statPages)       DOM.statPages.textContent       = state.knownNodeIds.size;
+  if (DOM.statDepth)       DOM.statDepth.textContent       = state.maxDepthSeen;
+  if (DOM.statBreadthSeen) DOM.statBreadthSeen.textContent = state.maxBreadthSeen;
+  if (state.keyword && DOM.statMatches) DOM.statMatches.textContent = state.matchCount;
 }
 
 // FIX 10: XSS Mitigation

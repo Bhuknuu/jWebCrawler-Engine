@@ -46,14 +46,23 @@
         <div class="form-row flex gap-4">
           <div class="form-group w-1/2">
             <label for="max-breadth" class="label-mono">Max Breadth</label>
-            <input type="number" id="max-breadth" name="maxBreadth" min="1" max="500" value="25" required>
-            <span class="form-hint">Links per page (1–500).</span>
+            <input type="number" id="max-breadth" name="maxBreadth" min="1" max="50" value="8" required>
+            <span class="form-hint">Links per page (1–50). Keep ≤10 for focused crawls.</span>
           </div>
           <div class="form-group w-1/2">
             <label for="keyword" class="label-mono">Keyword (optional)</label>
             <input type="text" id="keyword" name="keyword" placeholder="e.g. machine learning">
             <span class="form-hint">Highlight matching pages.</span>
           </div>
+        </div>
+
+        <div class="form-group">
+          <label class="label-mono" for="enable-scraper">
+            <input type="checkbox" id="enable-scraper" name="enableScraper" checked
+                   style="margin-right: 0.5rem; vertical-align: middle;">
+            Enable Text Scraper
+          </label>
+          <span class="form-hint">OFF = graph + metadata only. No body text stored.</span>
         </div>
 
         <div class="form-actions mt-4">
@@ -74,12 +83,14 @@
       <div class="brand flex items-center gap-2">
         <span class="brand-icon" aria-hidden="true">◈</span>
         <div>
-          <h1 class="heading-black m-0 leading-tight">Crawl Network</h1>
+          <h1 class="heading-black m-0 leading-tight">Crawl Engine</h1>
           <p class="label-mono m-0">Live Topology</p>
         </div>
       </div>
       
       <div class="header-controls flex items-center gap-6">
+        <button type="button" class="btn btn-secondary" id="btn-pause">Pause</button>
+        <button type="button" class="btn btn-secondary" id="btn-stop">Stop</button>
         <button type="button" class="btn btn-secondary" id="btn-reset">Reset Engine</button>
       </div>
     </header>
@@ -116,14 +127,15 @@
           </div>
 
           <div class="stat-card">
-            <span class="stat-key label-mono">Breadth</span>
+            <span class="stat-key label-mono">Breadth / Node</span>
             <div class="stat-fraction">
-              <span class="stat-value heading-black" id="stat-edges">0</span>
-              <span class="stat-sep">edges</span>
+              <span class="stat-value heading-black" id="stat-breadth-seen">0</span>
+              <span class="stat-sep">/</span>
+              <span class="stat-max" id="stat-breadth-max">0</span>
             </div>
           </div>
 
-          <div class="stat-card">
+          <div class="stat-card" id="stat-matches-card" style="display:none">
             <span class="stat-key label-mono">Matches</span>
             <div class="stat-fraction">
               <span class="stat-value heading-black" id="stat-matches">0</span>
