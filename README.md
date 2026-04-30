@@ -1,8 +1,8 @@
-# jWebCrawler-Engine
+ jWebCrawler-Engine
 
-**jWebCrawler-Engine** is a high-performance, domain-bounded Web Crawler built in Java, featuring a real-time, interactive, force-directed graph visualization dashboard. It uses a Breadth-First Search (BFS) traversal strategy constrained by depth limits, domain scoping, and hard page caps, making it safe and robust for crawling the web.
+jWebCrawler-Engine is a high-performance, domain-bounded Web Crawler built in Java, featuring a real-time, interactive, force-directed graph visualization dashboard. It uses a Breadth-First Search (BFS) traversal strategy constrained by depth limits, domain scoping, and hard page caps, making it safe and robust for crawling the web.
 
-## 🚀 Features
+  Features
 
 - **Domain-Bounded BFS Engine:** Performs level-order traversal, strictly staying within the seed URL's domain to prevent unbounded crawling.
 - **Real-Time Visualization Dashboard:** A beautiful, neo-brutalist web dashboard running at `http://localhost:8080`. Powered by **Cytoscape.js** and **WebCola**, it visualizes the live topology of the crawl as a force-directed graph.
@@ -11,14 +11,14 @@
 - **Keyword Matching:** Search for specific terms during the crawl, and the engine will flag and highlight matching pages on the dashboard.
 - **Zero-Config Setup:** No CLI arguments needed. Configure the seed URL, max depth, page cap, and keywords directly from the browser UI.
 
-## 🛠️ Tech Stack
+ Tech Stack
 
 - **Backend / Crawler Engine:** Java (Standard Library - `java.net.http`, `java.util.concurrent`)
 - **Frontend Dashboard:** HTML5, CSS3, Vanilla JavaScript
 - **Graph Visualization:** Cytoscape.js, WebCola
 - **Build System:** PowerShell (`build.ps1`)
 
-## 📂 Project Structure
+ Project Structure
 
 ```text
 jWebCrawler-Engine/
@@ -29,13 +29,13 @@ jWebCrawler-Engine/
 └── build.ps1                 # Build and run script
 ```
 
-## ⚙️ How to Build and Run
+ How to Build and Run
 
-### Prerequisites
+ Prerequisites
 - **Java 11+** installed and added to your system `PATH`.
 - **PowerShell** (available by default on Windows).
 
-### Running the Project
+ Running the Project
 
 1. Open PowerShell and navigate to the project directory.
 2. Run the build script:
@@ -48,7 +48,7 @@ jWebCrawler-Engine/
 
 *(To only compile the project without running it, use: `.\build.ps1 -compile`)*
 
-## 📖 Documentation
+ Documentation
 
 For an in-depth look at the architecture, design choices, and data structures (like the Bloom Filter integration), please check the files inside the `Documentation/` directory:
 - `jWebCrawler_DeepDive.html`
